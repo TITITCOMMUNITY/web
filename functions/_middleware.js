@@ -1,0 +1,1 @@
+export async function onRequest(context){const r=await context.next();r.headers.set("X-Content-Type-Options","nosniff");r.headers.set("X-Frame-Options","DENY");r.headers.set("Referrer-Policy","strict-origin-when-cross-origin");return r}
