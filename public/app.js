@@ -838,45 +838,94 @@ function setupGetKey() {
      * and redirect the user to
      * Linkvertise.
      */
+const startButton = $("#startGetKeyBtn");
 
-    const startButton =
-        $("#startGetKeyBtn");
+if (startButton) {
 
-    if (startButton) {
+    startButton.addEventListener(
+        "click",
+        async () => {
 
-        startButton.addEventListener(
-            "click",
-            async () => {
+            const message =
+                $("#getKeyMessage");
 
-                const message =
-                    $("#getKeyMessage");
+            if (message) {
+                message.textContent =
+                    "Creating your Free Key...";
+            }
+
+            startButton.disabled = true;
+
+            try {
+
+                const data =
+                    await api(
+                        "/api/free-key",
+                        {
+                            method: "POST"
+                        }
+                    );
+
+
+                if (
+                    data.test_verify_url
+                ) {
+
+                    if (message) {
+
+                        message.innerHTML =
+                            `
+                            <span>
+                                Test claim created.
+                                <br><br>
+                                <a
+                                  href="${data.test_verify_url}"
+                                  target="_blank"
+                                  style="color:#c084ff"
+                                >
+                                  COMPLETE TEST CLAIM
+                                </a>
+                            </span>
+                            `;
+                    }
+
+                    return;
+                }
 
 
                 if (message) {
 
                     message.textContent =
-                        "Free Key service is being prepared...";
+                        "Free Key created.";
                 }
 
 
-                /*
-                 * IMPORTANT:
-                 *
-                 * Do not generate a key here yet.
-                 *
-                 * Linkvertise verification
-                 * will be implemented in the
-                 * backend.
-                 */
+                await loadUserKeys();
 
-                console.log(
-                    "Get Key requested"
-                );
+
+                setTimeout(() => {
+
+                    closeKeyModal();
+
+                }, 1000);
+
+
+            } catch (error) {
+
+                if (message) {
+
+                    message.textContent =
+                        error.message;
+                }
+
+            } finally {
+
+                startButton.disabled =
+                    false;
             }
-        );
-    }
-}
-
+        }
+    );
+                       }
 
 /* =========================================================
    COPY KEY
