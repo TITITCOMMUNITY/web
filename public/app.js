@@ -1,171 +1,43 @@
 /* =========================================================
    BILSX APP
-   ========================================================= */
+========================================================= */
 
-const $ = (selector) =>
+const $ = selector =>
     document.querySelector(selector);
 
-/* =========================================================
-   LOGIN FORM
-   ========================================================= */
 
-function setupLogin() {
-
-    const form =
-        document.querySelector(
-            "form[data-demo-login]"
-        );
-
-    if (!form) {
-        return;
-    }
-
-
-    form.addEventListener(
-        "submit",
-        async event => {
-
-            event.preventDefault();
-
-
-            const inputs =
-                form.querySelectorAll(
-                    "input"
-                );
-
-
-            const login =
-                inputs[0]?.value.trim();
-
-
-            const password =
-                inputs[1]?.value || "";
-
-
-            const message =
-                document.querySelector(
-                    "#demo-message"
-                );
-
-
-            const button =
-                form.querySelector(
-                    'button[type="submit"]'
-                );
-
-
-            if (!login || !password) {
-                return;
-            }
-
-
-            if (button) {
-                button.disabled = true;
-                button.textContent =
-                    "Logging in...";
-            }
-
-
-            if (message) {
-                message.style.display =
-                    "none";
-                message.textContent =
-                    "";
-            }
-
-
-            try {
-
-                const data =
-                    await api(
-                        "/api/login",
-                        {
-                            method: "POST",
-
-                            body:
-                                JSON.stringify({
-                                    login,
-                                    password
-                                })
-                        }
-                    );
-
-
-                if (
-                    !data.success
-                ) {
-                    throw new Error(
-                        data.error ||
-                        "Login failed"
-                    );
-                }
-
-
-                /*
-                 * Login berhasil.
-                 *
-                 * login.js sudah membuat
-                 * cookie bilsx_session.
-                 */
-
-                window.location.href =
-                    "/dashboard.html";
-
-
-            } catch (error) {
-
-                console.error(
-                    "Login error:",
-                    error
-                );
-
-
-                if (message) {
-
-                    message.style.display =
-                        "block";
-
-                    message.textContent =
-                        error.message ||
-                        "Invalid credentials";
-                }
-
-
-                if (button) {
-
-                    button.disabled =
-                        false;
-
-                    button.textContent =
-                        "Login";
-                }
-            }
-
-        }
-    );
-}
 /* =========================================================
    API
-   ========================================================= */
+========================================================= */
 
-async function api(url, options = {}) {
+async function api(
+    url,
+    options = {}
+) {
 
-    const response = await fetch(url, {
-        credentials: "include",
-        ...options,
-        headers: {
-            ...(options.body
-                ? {
-                    "Content-Type":
-                        "application/json"
+    const response =
+        await fetch(
+            url,
+            {
+                credentials: "include",
+                ...options,
+
+                headers: {
+                    ...(options.body
+                        ? {
+                            "Content-Type":
+                                "application/json"
+                        }
+                        : {}),
+
+                    ...(options.headers || {})
                 }
-                : {}),
-            ...(options.headers || {})
-        }
-    });
+            }
+        );
 
 
     let data;
+
 
     try {
 
@@ -189,7 +61,9 @@ async function api(url, options = {}) {
     }
 
 
-    if (data.success === false) {
+    if (
+        data.success === false
+    ) {
 
         throw new Error(
             data.error ||
@@ -203,8 +77,275 @@ async function api(url, options = {}) {
 
 
 /* =========================================================
-   CURRENT USER
-   ========================================================= */
+   LOGIN
+========================================================= */
+
+function setupLogin() {
+
+    const form =
+        document.querySelector(
+            "form[data-demo-login]"
+        );
+
+
+    if (!form) {
+        return;
+    }
+
+
+    form.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+
+            const inputs =
+                form.querySelectorAll(
+                    "input"
+                );
+
+
+            const login =
+                inputs[0]
+                    ?.value
+                    .trim() || "";
+
+
+            const password =
+                inputs[1]
+                    ?.value || "";
+
+
+            const message =
+                $("#demo-message");
+
+
+            const button =
+                form.querySelector(
+                    'button[type="submit"]'
+                );
+
+
+            if (
+                !login ||
+                !password
+            ) {
+
+                if (message) {
+
+                    message.style.display =
+                        "block";
+
+                    message.textContent =
+                        "Username/email dan password wajib diisi";
+                }
+
+                return;
+            }
+
+
+            if (button) {
+
+                button.disabled =
+                    true;
+
+                button.textContent =
+                    "Logging in...";
+            }
+
+
+            try {
+
+                const data =
+                    await api(
+                        "/api/login",
+                        {
+                            method: "POST",
+
+                            body:
+                                JSON.stringify({
+                                    login,
+                                    password
+                                })
+                        }
+                    );
+
+
+                console.log(
+                    "Login success:",
+                    data
+                );
+
+
+                window.location.href =
+                    "/dashboard.html";
+
+
+            } catch (error) {
+
+                console.error(
+                    "Login error:",
+                    error
+                );
+
+
+                if (message) {
+
+                    message.style.display =
+                        "block";
+
+                    message.textContent =
+                        error.message;
+                }
+
+
+                if (button) {
+
+                    button.disabled =
+                        false;
+
+                    button.textContent =
+                        "Login";
+                }
+            }
+        }
+    );
+}
+
+
+/* =========================================================
+   REGISTER
+========================================================= */
+
+function setupRegister() {
+
+    const form =
+        document.querySelector(
+            "form[data-register]"
+        );
+
+
+    if (!form) {
+        return;
+    }
+
+
+    form.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+
+            const inputs =
+                form.querySelectorAll(
+                    "input"
+                );
+
+
+            const username =
+                inputs[0]
+                    ?.value
+                    .trim() || "";
+
+
+            const email =
+                inputs[1]
+                    ?.value
+                    .trim() || "";
+
+
+            const password =
+                inputs[2]
+                    ?.value || "";
+
+
+            const message =
+                $("#register-message");
+
+
+            const button =
+                form.querySelector(
+                    'button[type="submit"]'
+                );
+
+
+            try {
+
+                if (button) {
+
+                    button.disabled =
+                        true;
+
+                    button.textContent =
+                        "Creating...";
+                }
+
+
+                const data =
+                    await api(
+                        "/api/register",
+                        {
+                            method: "POST",
+
+                            body:
+                                JSON.stringify({
+                                    username,
+                                    email,
+                                    password
+                                })
+                        }
+                    );
+
+
+                if (message) {
+
+                    message.style.display =
+                        "block";
+
+                    message.textContent =
+                        "Account created successfully.";
+                }
+
+
+                setTimeout(() => {
+
+                    window.location.href =
+                        "/login.html";
+
+                }, 800);
+
+
+            } catch (error) {
+
+                if (message) {
+
+                    message.style.display =
+                        "block";
+
+                    message.textContent =
+                        error.message;
+                }
+
+
+                if (button) {
+
+                    button.disabled =
+                        false;
+
+                    button.textContent =
+                        "Create Account";
+                }
+            }
+        }
+    );
+}
+
+
+/* =========================================================
+   ME
+========================================================= */
 
 async function getCurrentUser() {
 
@@ -215,8 +356,8 @@ async function getCurrentUser() {
 
 
 /* =========================================================
-   AUTH
-   ========================================================= */
+   DASHBOARD AUTH
+========================================================= */
 
 async function requireAuth() {
 
@@ -240,12 +381,7 @@ async function requireAuth() {
 
         return data.user;
 
-    } catch (error) {
-
-        console.error(
-            "Authentication error:",
-            error
-        );
+    } catch {
 
         window.location.href =
             "/login.html";
@@ -257,37 +393,7 @@ async function requireAuth() {
 
 /* =========================================================
    LOGOUT
-   ========================================================= */
-
-async function logout() {
-
-    try {
-
-        await api(
-            "/api/logout",
-            {
-                method: "POST"
-            }
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Logout error:",
-            error
-        );
-
-    } finally {
-
-        window.location.href =
-            "/login.html";
-    }
-}
-
-
-/* =========================================================
-   LOGOUT BUTTON
-   ========================================================= */
+========================================================= */
 
 function setupLogout() {
 
@@ -303,50 +409,30 @@ function setupLogout() {
 
                     event.preventDefault();
 
-                    await logout();
+
+                    try {
+
+                        await api(
+                            "/api/logout",
+                            {
+                                method: "POST"
+                            }
+                        );
+
+                    } catch {}
+
+
+                    window.location.href =
+                        "/login.html";
                 }
             );
-
         });
 }
 
 
 /* =========================================================
-   DATE
-   ========================================================= */
-
-function formatDate(value) {
-
-    if (
-        value === null ||
-        value === undefined ||
-        value === ""
-    ) {
-
-        return "—";
-    }
-
-
-    const timestamp =
-        Number(value);
-
-
-    if (
-        !Number.isFinite(timestamp)
-    ) {
-
-        return "—";
-    }
-
-
-    return new Date(timestamp)
-        .toLocaleString();
-}
-
-
-/* =========================================================
    DASHBOARD
-   ========================================================= */
+========================================================= */
 
 async function loadDashboard() {
 
@@ -363,18 +449,12 @@ async function loadDashboard() {
         user;
 
 
-    /*
-     * Username
-     */
-
     const name =
         $("#name");
 
     if (name) {
-
         name.textContent =
-            user.username ||
-            "User";
+            user.username;
     }
 
 
@@ -382,48 +462,30 @@ async function loadDashboard() {
         $("#username");
 
     if (username) {
-
         username.textContent =
-            user.username ||
-            "—";
+            user.username;
     }
 
-
-    /*
-     * Status
-     */
 
     const status =
         $("#status");
 
     if (status) {
-
         status.textContent =
-            user.status ||
-            "—";
+            user.status;
     }
 
-
-    /*
-     * Role
-     */
 
     const role =
         $("#role");
 
     if (role) {
-
         role.textContent =
             String(
-                user.role ||
-                "user"
+                user.role || "user"
             ).toUpperCase();
     }
 
-
-    /*
-     * Plan
-     */
 
     const plan =
         $("#plan");
@@ -431,37 +493,21 @@ async function loadDashboard() {
 
     const isAdmin =
         String(
-            user.role ||
-            ""
+            user.role || ""
         ).toLowerCase() ===
         "admin";
 
 
     if (plan) {
 
-        if (isAdmin) {
-
-            plan.textContent =
-                "ADMIN";
-
-        } else if (
-            user.premium
-        ) {
-
-            plan.textContent =
-                "PREMIUM";
-
-        } else {
-
-            plan.textContent =
-                "FREE";
-        }
+        plan.textContent =
+            isAdmin
+                ? "ADMIN"
+                : user.premium
+                    ? "PREMIUM"
+                    : "FREE";
     }
 
-
-    /*
-     * Premium info
-     */
 
     const premiumInfo =
         $("#premiumInfo");
@@ -478,21 +524,15 @@ async function loadDashboard() {
             user.premium
         ) {
 
-            if (
+            premiumInfo.textContent =
                 user.premium_expires_at
-            ) {
-
-                premiumInfo.textContent =
-                    "Premium expires: " +
-                    formatDate(
-                        user.premium_expires_at
-                    );
-
-            } else {
-
-                premiumInfo.textContent =
-                    "Premium active";
-            }
+                    ? "Premium expires: " +
+                      new Date(
+                          Number(
+                              user.premium_expires_at
+                          )
+                      ).toLocaleString()
+                    : "Premium active";
 
         } else {
 
@@ -503,14 +543,14 @@ async function loadDashboard() {
 
 
     /*
-     * Feature status
+     * Admin dan premium
+     * tidak perlu Free Key.
      */
 
-    const growscan =
-        $("#growscanAccess");
-
-    const fastFriend =
-        $("#fastFriendAccess");
+    const keyPanel =
+        document.querySelector(
+            ".key-panel"
+        );
 
 
     if (
@@ -518,34 +558,408 @@ async function loadDashboard() {
         user.premium
     ) {
 
-        if (growscan) {
-            growscan.textContent =
-                "ACTIVE";
+        if (keyPanel) {
+            keyPanel.style.display =
+                "none";
         }
 
-        if (fastFriend) {
-            fastFriend.textContent =
-                "ACTIVE";
+        return;
+    }
+
+
+    /*
+     * Free user.
+     */
+
+    await loadFreeKey();
+}
+
+
+/* =========================================================
+   FREE KEY
+========================================================= */
+
+async function loadFreeKey() {
+
+    try {
+
+        const data =
+            await api(
+                "/api/free-key"
+            );
+
+
+        if (
+            data.required === false
+        ) {
+            return;
         }
 
-    } else {
 
-        if (growscan) {
-            growscan.textContent =
-                "PREMIUM";
+        if (
+            !data.has_key
+        ) {
+
+            showNoKey();
+
+            return;
         }
 
-        if (fastFriend) {
-            fastFriend.textContent =
-                "PREMIUM";
-        }
+
+        showKey(
+            data.key
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Free Key:",
+            error
+        );
     }
 }
 
 
 /* =========================================================
-   INIT
-   ========================================================= */
+   SHOW NO KEY
+========================================================= */
+
+function showNoKey() {
+
+    const noKey =
+        $("#noKey");
+
+    const keyBox =
+        $("#keyBox");
+
+
+    if (noKey) {
+        noKey.hidden = false;
+    }
+
+
+    if (keyBox) {
+        keyBox.hidden = true;
+    }
+}
+
+
+/* =========================================================
+   SHOW KEY
+========================================================= */
+
+function showKey(key) {
+
+    const noKey =
+        $("#noKey");
+
+    const keyBox =
+        $("#keyBox");
+
+
+    if (noKey) {
+        noKey.hidden = true;
+    }
+
+
+    if (keyBox) {
+        keyBox.hidden = false;
+    }
+
+
+    const keyElement =
+        $("#licenseKey");
+
+
+    if (keyElement) {
+        keyElement.textContent =
+            key.key || "—";
+    }
+
+
+    const status =
+        $("#keyStatus");
+
+
+    if (status) {
+
+        if (
+            key.expires_at &&
+            Number(key.expires_at) <=
+            Date.now()
+        ) {
+
+            status.textContent =
+                "EXPIRED";
+
+        } else {
+
+            status.textContent =
+                String(
+                    key.status ||
+                    "ACTIVE"
+                ).toUpperCase();
+        }
+    }
+
+
+    const expiry =
+        $("#keyExpiry");
+
+
+    if (expiry) {
+
+        if (key.expires_at) {
+
+            const time =
+                Number(
+                    key.expires_at
+                );
+
+
+            if (
+                time <= Date.now()
+            ) {
+
+                expiry.textContent =
+                    "Expired";
+
+            } else {
+
+                expiry.textContent =
+                    "Expires: " +
+                    new Date(
+                        time
+                    ).toLocaleString();
+            }
+
+        } else {
+
+            expiry.textContent =
+                "No expiration";
+        }
+    }
+
+
+    window.BILSX_CURRENT_KEY =
+        key;
+}
+
+
+/* =========================================================
+   GET KEY
+========================================================= */
+
+function setupGetKey() {
+
+    const getButton =
+        $("#getKeyBtn");
+
+
+    if (getButton) {
+
+        getButton.addEventListener(
+            "click",
+            () => {
+
+                const modal =
+                    $("#keyModal");
+
+                if (modal) {
+                    modal.hidden = false;
+                }
+            }
+        );
+    }
+
+
+    const addButton =
+        $("#addKeyBtn");
+
+
+    if (addButton) {
+
+        addButton.addEventListener(
+            "click",
+            () => {
+
+                const modal =
+                    $("#keyModal");
+
+                if (modal) {
+                    modal.hidden = false;
+                }
+            }
+        );
+    }
+
+
+    const closeButton =
+        $("#closeKeyModal");
+
+
+    if (closeButton) {
+
+        closeButton.addEventListener(
+            "click",
+            () => {
+
+                const modal =
+                    $("#keyModal");
+
+                if (modal) {
+                    modal.hidden = true;
+                }
+            }
+        );
+    }
+
+
+    const startButton =
+        $("#startGetKeyBtn");
+
+
+    if (startButton) {
+
+        startButton.addEventListener(
+            "click",
+            async () => {
+
+                const message =
+                    $("#getKeyMessage");
+
+
+                startButton.disabled =
+                    true;
+
+
+                try {
+
+                    const data =
+                        await api(
+                            "/api/free-key",
+                            {
+                                method: "POST"
+                            }
+                        );
+
+
+                    if (message) {
+
+                        message.textContent =
+                            "Key berhasil dibuat.";
+                    }
+
+
+                    if (data.key) {
+
+                        showKey(
+                            data.key
+                        );
+                    }
+
+
+                    const modal =
+                        $("#keyModal");
+
+
+                    if (modal) {
+
+                        setTimeout(() => {
+
+                            modal.hidden =
+                                true;
+
+                        }, 700);
+                    }
+
+
+                } catch (error) {
+
+                    if (message) {
+
+                        message.textContent =
+                            error.message;
+                    }
+
+                } finally {
+
+                    startButton.disabled =
+                        false;
+                }
+            }
+        );
+    }
+}
+
+
+/* =========================================================
+   COPY KEY
+========================================================= */
+
+function setupCopyKey() {
+
+    const button =
+        $("#copyKeyBtn");
+
+
+    if (!button) {
+        return;
+    }
+
+
+    button.addEventListener(
+        "click",
+        async () => {
+
+            const key =
+                $("#licenseKey");
+
+
+            if (!key) {
+                return;
+            }
+
+
+            const value =
+                key.textContent.trim();
+
+
+            if (!value) {
+                return;
+            }
+
+
+            try {
+
+                await navigator.clipboard
+                    .writeText(value);
+
+
+                const old =
+                    button.textContent;
+
+
+                button.textContent =
+                    "COPIED";
+
+
+                setTimeout(() => {
+
+                    button.textContent =
+                        old;
+
+                }, 1500);
+
+            } catch {}
+        }
+    );
+}
+
+
+/* =========================================================
+   PAGE INIT
+========================================================= */
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -558,34 +972,34 @@ document.addEventListener(
             document.body.dataset.page;
 
 
-        switch (page) {
+        if (
+            page === "login"
+        ) {
 
-            case "dashboard":
-
-                setupGetKey();
-                setupCopyKey();
-
-                await dashboard();
-
-                startKeyTimer();
-
-                break;
+            setupLogin();
+            return;
+        }
 
 
-            case "login":
+        if (
+            page === "register"
+        ) {
 
-                setupLogin();
-
-                await loginPage();
-
-                break;
+            setupRegister();
+            return;
+        }
 
 
-            case "register":
+        if (
+            page === "dashboard"
+        ) {
 
-                await registerPage();
+            setupGetKey();
+            setupCopyKey();
 
-                break;
+            await loadDashboard();
+
+            return;
         }
     }
 );
