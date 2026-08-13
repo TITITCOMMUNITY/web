@@ -558,11 +558,34 @@ document.addEventListener(
             document.body.dataset.page;
 
 
-        if (
-            page === "dashboard"
-        ) {
+        switch (page) {
 
-            await loadDashboard();
+            case "dashboard":
+
+                setupGetKey();
+                setupCopyKey();
+
+                await dashboard();
+
+                startKeyTimer();
+
+                break;
+
+
+            case "login":
+
+                setupLogin();
+
+                await loginPage();
+
+                break;
+
+
+            case "register":
+
+                await registerPage();
+
+                break;
         }
     }
 );
