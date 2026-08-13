@@ -4,5 +4,5 @@ pages_build_output_dir = "public"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "bilsx-db"
-database_id = "GANTI-DENGAN-DATABASE-ID"
+database_name = "bilsx"
+database_id = "04069ce1-0a4c-4aaa-a70c-edb904bb5731"
