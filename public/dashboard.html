@@ -1,1 +1,363 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard — BILSX</title><link rel="stylesheet" href="/style.css"></head><body data-page="dashboard"><div class="dash"><aside class="side"><a href="/" style="font-size:21px;font-weight:900;color:#c084ff">BILSX</a><a href="/dashboard.html">Dashboard</a><a href="/keys.html">License Keys</a><a href="/tools.html">Tools</a><a href="/documentation.html">Docs</a><a href="#" data-logout>Logout</a></aside><main class="main"><h1>Welcome, <span id="name">...</span></h1><div class="metrics"><div class="metric"><small>Active Keys</small><strong id="active">—</strong></div><div class="metric"><small>Expired Keys</small><strong id="expired">—</strong></div><div class="metric"><small>Total Keys</small><strong id="total">—</strong></div><div class="metric"><small>Account</small><strong>User</strong></div></div><div class="panel"><h3>Recent License Keys</h3><div class="table"><table><thead><tr><th>Key</th><th>Status</th><th>Expires</th></tr></thead><tbody id="keys"><tr><td colspan="3">Loading...</td></tr></tbody></table></div></div></main></div><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dashboard — BILSX</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body data-page="dashboard">
+
+  <div class="dash">
+
+    <aside class="side">
+      <a href="/" class="brand">BILSX</a>
+
+      <a href="/dashboard.html" class="active">
+        Dashboard
+      </a>
+
+      <a href="/tools.html">
+        Tools
+      </a>
+
+      <a href="/documentation.html">
+        Documentation
+      </a>
+
+      <a href="#" data-logout>
+        Logout
+      </a>
+    </aside>
+
+
+    <main class="main">
+
+      <!-- HEADER -->
+
+      <div class="dashboard-header">
+
+        <div>
+          <span class="eyebrow">USER DASHBOARD</span>
+
+          <h1>
+            Welcome, <span id="name">...</span>
+          </h1>
+
+          <p class="muted">
+            Manage your BILSX account and access.
+          </p>
+        </div>
+
+      </div>
+
+
+      <!-- ACCOUNT -->
+
+      <section class="dashboard-grid">
+
+        <div class="account-card panel">
+
+          <div class="card-label">
+            ACCOUNT
+          </div>
+
+          <div class="account-row">
+
+            <div>
+              <small>Username</small>
+              <strong id="username">—</strong>
+            </div>
+
+            <div>
+              <small>Status</small>
+
+              <strong>
+                <span class="status-dot"></span>
+                <span id="status">—</span>
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="account-card panel">
+
+          <div class="card-label">
+            ACCESS
+          </div>
+
+          <div class="access-info">
+
+            <div>
+              <small>Role</small>
+              <strong id="role">—</strong>
+            </div>
+
+            <div>
+              <small>Plan</small>
+              <strong id="plan">—</strong>
+            </div>
+
+          </div>
+
+          <div id="premiumInfo" class="premium-info"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- FREE KEY -->
+
+      <section class="panel key-panel">
+
+        <div class="section-heading">
+
+          <div>
+            <span class="eyebrow">LICENSE</span>
+
+            <h2>Free Key</h2>
+
+            <p class="muted">
+              One account can have one Free Key.
+              Each completed Linkvertise task adds 6 hours.
+            </p>
+          </div>
+
+        </div>
+
+
+        <!-- NO KEY -->
+
+        <div id="noKey" class="key-empty">
+
+          <div class="key-icon">
+            +
+          </div>
+
+          <h3>No Free Key</h3>
+
+          <p class="muted">
+            You don't have a Free Key yet.
+          </p>
+
+          <button
+            class="btn"
+            id="getKeyBtn"
+            type="button"
+          >
+            GET FREE KEY
+          </button>
+
+        </div>
+
+
+        <!-- KEY -->
+
+        <div id="keyBox" class="key-box" hidden>
+
+          <div class="key-main">
+
+            <small>YOUR FREE KEY</small>
+
+            <div class="key-value">
+              <span id="licenseKey">—</span>
+
+              <button
+                class="copy-btn"
+                id="copyKeyBtn"
+                type="button"
+              >
+                COPY
+              </button>
+            </div>
+
+          </div>
+
+
+          <div class="key-status">
+
+            <span id="keyStatus" class="status">
+              —
+            </span>
+
+            <strong id="keyExpiry">
+              —
+            </strong>
+
+          </div>
+
+
+          <button
+            class="add-key-btn"
+            id="addKeyBtn"
+            type="button"
+          >
+            + ADD
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <!-- ACCESS INFORMATION -->
+
+      <section class="panel">
+
+        <div class="section-heading">
+
+          <div>
+            <span class="eyebrow">ACCESS</span>
+
+            <h2>Your Features</h2>
+
+            <p class="muted">
+              Your available BILSX features.
+            </p>
+          </div>
+
+        </div>
+
+
+        <div class="feature-list">
+
+          <div class="feature-item">
+
+            <div>
+              <strong>Find World</strong>
+              <small>Free</small>
+            </div>
+
+            <span class="feature-badge free">
+              FREE
+            </span>
+
+          </div>
+
+
+          <div class="feature-item">
+
+            <div>
+              <strong>World Tools</strong>
+              <small>Free</small>
+            </div>
+
+            <span class="feature-badge free">
+              FREE
+            </span>
+
+          </div>
+
+
+          <div class="feature-item">
+
+            <div>
+              <strong>Growscan</strong>
+              <small>Premium</small>
+            </div>
+
+            <span
+              class="feature-badge premium"
+              id="growscanAccess"
+            >
+              PREMIUM
+            </span>
+
+          </div>
+
+
+          <div class="feature-item">
+
+            <div>
+              <strong>Fast Friend</strong>
+              <small>Premium</small>
+            </div>
+
+            <span
+              class="feature-badge premium"
+              id="fastFriendAccess"
+            >
+              PREMIUM
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- MESSAGE -->
+
+      <div
+        id="dashboardMsg"
+        class="dashboard-message"
+        hidden
+      ></div>
+
+    </main>
+
+  </div>
+
+
+  <!-- GET KEY MODAL -->
+
+  <div
+    id="keyModal"
+    class="modal"
+    hidden
+  >
+
+    <div class="modal-card">
+
+      <button
+        class="modal-close"
+        id="closeKeyModal"
+        type="button"
+      >
+        ×
+      </button>
+
+      <span class="eyebrow">
+        FREE ACCESS
+      </span>
+
+      <h2>Get Free Key</h2>
+
+      <p class="muted">
+        Complete one Linkvertise task to receive
+        6 hours of Free access.
+      </p>
+
+      <div class="modal-info">
+        <strong>+6 HOURS</strong>
+        <span>per completed task</span>
+      </div>
+
+      <button
+        class="btn"
+        id="startGetKeyBtn"
+        type="button"
+      >
+        CONTINUE
+      </button>
+
+      <p
+        id="getKeyMessage"
+        class="muted modal-message"
+      ></p>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js"></script>
+
+</body>
+</html>
