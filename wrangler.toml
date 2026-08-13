@@ -1,0 +1,8 @@
+name = "bilsx-web"
+compatibility_date = "2026-08-13"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bilsx-db"
+database_id = "GANTI-DENGAN-DATABASE-ID"
