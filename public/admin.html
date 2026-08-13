@@ -1,1 +1,1644 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard — BILSX</title><link rel="stylesheet" href="/style.css"></head><body data-page="admin"><div class="dash"><aside class="side"><a href="/" style="font-size:21px;font-weight:900;color:#c084ff">BILSX</a><a href="/admin.html">Overview</a><a href="/admin-users.html">Users</a><a href="/admin-keys.html">License Keys</a><a href="/admin-logs.html">Logs</a><a href="#" data-logout>Logout</a></aside><main class="main"><h1>Admin Dashboard</h1><div id="msg" class="msg"></div><div class="metrics"><div class="metric"><small>Total Users</small><strong id="users">—</strong></div><div class="metric"><small>Total Keys</small><strong id="keysCount">—</strong></div><div class="metric"><small>Active Keys</small><strong id="active">—</strong></div><div class="metric"><small>Expired Keys</small><strong id="expired">—</strong></div></div><div class="grid2"><div class="panel"><h3>Recent Users</h3><div class="table"><table><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Created</th></tr></thead><tbody id="usersTable"><tr><td colspan="4">Loading...</td></tr></tbody></table></div></div><div class="panel"><h3>Quick Actions</h3><p class="muted">Visual admin foundation. Key generation, revoke, user CRUD and logs can be added next.</p><a class="btn" href="/admin-keys.html">Manage Keys</a></div></div></main></div><script src="/app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>BILSX Admin Dashboard</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      background: #080b12;
+      color: #f4f7fb;
+      min-height: 100vh;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    /* =========================
+       LAYOUT
+    ========================= */
+
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 245px;
+      background: #0d111a;
+      border-right: 1px solid #1d2430;
+      padding: 24px 16px;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+    }
+
+    .main {
+      margin-left: 245px;
+      width: calc(100% - 245px);
+      padding: 30px;
+    }
+
+    /* =========================
+       LOGO
+    ========================= */
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 35px;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+
+      background:
+        linear-gradient(
+          135deg,
+          #7c3aed,
+          #2563eb
+        );
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 18px;
+      font-weight: 900;
+
+      box-shadow:
+        0 0 25px rgba(99, 102, 241, .25);
+    }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .5px;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: #697386;
+      margin-top: 2px;
+    }
+
+    /* =========================
+       NAVIGATION
+    ========================= */
+
+    .nav-title {
+      color: #596273;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 20px 12px 10px;
+    }
+
+    .nav-btn {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #8993a5;
+
+      padding: 12px 13px;
+      margin-bottom: 5px;
+
+      border-radius: 10px;
+
+      text-align: left;
+      cursor: pointer;
+
+      transition: .2s;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: #171d2a;
+      color: white;
+    }
+
+    .nav-btn.active {
+      box-shadow:
+        inset 3px 0 0 #7c3aed;
+    }
+
+    /* =========================
+       PROFILE
+    ========================= */
+
+    .sidebar-bottom {
+      position: absolute;
+      bottom: 20px;
+      left: 16px;
+      right: 16px;
+    }
+
+    .profile {
+      background: #111722;
+      border: 1px solid #202938;
+      border-radius: 13px;
+      padding: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+
+      border-radius: 50%;
+
+      background: #252d3d;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-weight: 800;
+    }
+
+    .profile-name {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .profile-role {
+      font-size: 11px;
+      color: #8b5cf6;
+      margin-top: 2px;
+    }
+
+    /* =========================
+       HEADER
+    ========================= */
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .page-description {
+      color: #737d8e;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+
+    .refresh-btn {
+      border: 1px solid #252d3b;
+      background: #101620;
+      color: #cbd3df;
+
+      padding: 10px 15px;
+      border-radius: 9px;
+
+      cursor: pointer;
+    }
+
+    .refresh-btn:hover {
+      background: #171e2b;
+    }
+
+    /* =========================
+       STAT CARDS
+    ========================= */
+
+    .stats {
+      display: grid;
+
+      grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+      gap: 16px;
+
+      margin-bottom: 25px;
+    }
+
+    .stat {
+      background: #0e131c;
+      border: 1px solid #1e2633;
+      border-radius: 15px;
+      padding: 20px;
+    }
+
+    .stat-label {
+      color: #7b8698;
+      font-size: 12px;
+    }
+
+    .stat-value {
+      font-size: 29px;
+      font-weight: 800;
+      margin-top: 9px;
+    }
+
+    .stat-info {
+      color: #596476;
+      font-size: 11px;
+      margin-top: 5px;
+    }
+
+    /* =========================
+       PANEL
+    ========================= */
+
+    .panel {
+      background: #0e131c;
+      border: 1px solid #1e2633;
+      border-radius: 15px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1d2531;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 750;
+    }
+
+    .search {
+      width: 230px;
+
+      background: #080c13;
+      border: 1px solid #252e3c;
+      border-radius: 8px;
+
+      padding: 9px 12px;
+
+      color: white;
+      outline: none;
+    }
+
+    .search:focus {
+      border-color: #6d4aff;
+    }
+
+    /* =========================
+       TABLE
+    ========================= */
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      color: #687386;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+
+      text-align: left;
+
+      padding: 13px 20px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 15px 20px;
+
+      border-top: 1px solid #171e29;
+
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    tbody tr:hover {
+      background: #111722;
+    }
+
+    .username {
+      font-weight: 700;
+    }
+
+    .email {
+      color: #687386;
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    /* =========================
+       BADGES
+    ========================= */
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+
+      padding: 5px 8px;
+
+      border-radius: 6px;
+
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .badge-admin {
+      background: rgba(124, 58, 237, .13);
+      color: #a78bfa;
+    }
+
+    .badge-user {
+      background: #161d29;
+      color: #8b96a8;
+    }
+
+    .badge-premium {
+      background: rgba(16, 185, 129, .12);
+      color: #34d399;
+    }
+
+    .badge-free {
+      background: #171d27;
+      color: #7d8797;
+    }
+
+    .badge-active {
+      background: rgba(34, 197, 94, .1);
+      color: #4ade80;
+    }
+
+    .badge-banned {
+      background: rgba(239, 68, 68, .1);
+      color: #f87171;
+    }
+
+    /* =========================
+       BUTTON
+    ========================= */
+
+    .manage-btn {
+      border: 1px solid #293344;
+
+      background: #141b27;
+      color: #d6dce6;
+
+      padding: 7px 11px;
+
+      border-radius: 7px;
+
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .manage-btn:hover {
+      background: #1d2635;
+    }
+
+    /* =========================
+       MODAL
+    ========================= */
+
+    .modal {
+      position: fixed;
+      inset: 0;
+
+      background: rgba(0, 0, 0, .7);
+
+      display: none;
+      align-items: center;
+      justify-content: center;
+
+      padding: 20px;
+
+      z-index: 100;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-box {
+      width: 100%;
+      max-width: 440px;
+
+      background: #0e131c;
+
+      border: 1px solid #273142;
+
+      border-radius: 16px;
+
+      padding: 24px;
+
+      box-shadow:
+        0 25px 80px rgba(0,0,0,.45);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      margin-bottom: 22px;
+    }
+
+    .modal-title {
+      font-size: 19px;
+      font-weight: 800;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: 0;
+      color: #7b8698;
+      font-size: 22px;
+      cursor: pointer;
+    }
+
+    .user-detail {
+      color: #6f7a8c;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .form-group {
+      margin-bottom: 17px;
+    }
+
+    .form-label {
+      display: block;
+      color: #7c8798;
+      font-size: 11px;
+      margin-bottom: 7px;
+    }
+
+    .form-control {
+      width: 100%;
+
+      background: #080c13;
+      border: 1px solid #252e3b;
+
+      color: white;
+
+      padding: 11px;
+
+      border-radius: 8px;
+
+      outline: none;
+    }
+
+    .form-control:focus {
+      border-color: #6d4aff;
+    }
+
+    .save-btn {
+      width: 100%;
+
+      border: 0;
+
+      background:
+        linear-gradient(
+          135deg,
+          #7c3aed,
+          #4f46e5
+        );
+
+      color: white;
+
+      padding: 12px;
+
+      border-radius: 9px;
+
+      font-weight: 700;
+
+      cursor: pointer;
+    }
+
+    .save-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .message {
+      display: none;
+
+      padding: 10px;
+
+      border-radius: 8px;
+
+      font-size: 12px;
+
+      margin-bottom: 15px;
+    }
+
+    .message.show {
+      display: block;
+    }
+
+    .message.error {
+      background: rgba(239,68,68,.1);
+      color: #f87171;
+    }
+
+    .message.success {
+      background: rgba(34,197,94,.1);
+      color: #4ade80;
+    }
+
+    /* =========================
+       LOADING
+    ========================= */
+
+    .loading {
+      padding: 35px;
+      text-align: center;
+      color: #667184;
+    }
+
+    .empty {
+      padding: 35px;
+      text-align: center;
+      color: #667184;
+    }
+
+    /* =========================
+       MOBILE
+    ========================= */
+
+    @media (max-width: 900px) {
+
+      .sidebar {
+        width: 70px;
+        padding: 15px 10px;
+      }
+
+      .logo-text,
+      .logo-sub,
+      .nav-title,
+      .nav-btn span,
+      .profile-info {
+        display: none;
+      }
+
+      .logo {
+        justify-content: center;
+      }
+
+      .nav-btn {
+        text-align: center;
+      }
+
+      .sidebar-bottom {
+        left: 10px;
+        right: 10px;
+      }
+
+      .profile {
+        justify-content: center;
+      }
+
+      .main {
+        margin-left: 70px;
+        width: calc(100% - 70px);
+        padding: 20px;
+      }
+
+      .stats {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 600px) {
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .page-title {
+        font-size: 22px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .panel-header {
+        gap: 12px;
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .search {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- =========================
+       SIDEBAR
+  ========================== -->
+
+  <aside class="sidebar">
+
+    <div class="logo">
+
+      <div class="logo-icon">
+        BX
+      </div>
+
+      <div>
+        <div class="logo-text">
+          BILSX
+        </div>
+
+        <div class="logo-sub">
+          ADMIN PANEL
+        </div>
+      </div>
+
+    </div>
+
+
+    <div class="nav-title">
+      Management
+    </div>
+
+    <button class="nav-btn active">
+      ◈ <span>Dashboard</span>
+    </button>
+
+    <button
+      class="nav-btn"
+      onclick="scrollUsers()"
+    >
+      ◎ <span>Users</span>
+    </button>
+
+    <button
+      class="nav-btn"
+      onclick="comingSoon()"
+    >
+      ◇ <span>License Keys</span>
+    </button>
+
+
+    <div class="nav-title">
+      System
+    </div>
+
+    <button
+      class="nav-btn"
+      onclick="loadAll()"
+    >
+      ↻ <span>Refresh</span>
+    </button>
+
+  </aside>
+
+
+  <!-- =========================
+       MAIN
+  ========================== -->
+
+  <main class="main">
+
+    <div class="topbar">
+
+      <div>
+        <div class="page-title">
+          Dashboard
+        </div>
+
+        <div class="page-description">
+          Kelola user dan sistem BILSX
+        </div>
+      </div>
+
+      <button
+        class="refresh-btn"
+        onclick="loadAll()"
+      >
+        ↻ Refresh
+      </button>
+
+    </div>
+
+
+    <!-- =========================
+         STATS
+    ========================== -->
+
+    <section class="stats">
+
+      <div class="stat">
+
+        <div class="stat-label">
+          TOTAL USERS
+        </div>
+
+        <div
+          class="stat-value"
+          id="totalUsers"
+        >
+          —
+        </div>
+
+        <div class="stat-info">
+          Semua akun
+        </div>
+
+      </div>
+
+
+      <div class="stat">
+
+        <div class="stat-label">
+          PREMIUM USERS
+        </div>
+
+        <div
+          class="stat-value"
+          id="premiumUsers"
+        >
+          —
+        </div>
+
+        <div class="stat-info">
+          Premium aktif
+        </div>
+
+      </div>
+
+
+      <div class="stat">
+
+        <div class="stat-label">
+          ACTIVE USERS
+        </div>
+
+        <div
+          class="stat-value"
+          id="activeUsers"
+        >
+          —
+        </div>
+
+        <div class="stat-info">
+          Akun aktif
+        </div>
+
+      </div>
+
+
+      <div class="stat">
+
+        <div class="stat-label">
+          LICENSE KEYS
+        </div>
+
+        <div
+          class="stat-value"
+          id="licenseKeys"
+        >
+          —
+        </div>
+
+        <div class="stat-info">
+          Semua key
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         USER PANEL
+    ========================== -->
+
+    <section
+      class="panel"
+      id="usersPanel"
+    >
+
+      <div class="panel-header">
+
+        <div class="panel-title">
+          User Management
+        </div>
+
+        <input
+          type="text"
+          id="search"
+          class="search"
+          placeholder="Cari username / email..."
+          oninput="searchUsers()"
+        >
+
+      </div>
+
+
+      <div class="table-wrapper">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>User</th>
+              <th>Role</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Premium Expiry</th>
+              <th>Action</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody id="usersBody">
+
+            <tr>
+
+              <td
+                colspan="6"
+                class="loading"
+              >
+                Loading...
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+<!-- =========================
+     MODAL
+========================== -->
+
+<div
+  class="modal"
+  id="modal"
+>
+
+  <div class="modal-box">
+
+    <div class="modal-header">
+
+      <div>
+
+        <div class="modal-title">
+          Manage User
+        </div>
+
+        <div
+          class="user-detail"
+          id="modalUser"
+        >
+        </div>
+
+      </div>
+
+      <button
+        class="close-btn"
+        onclick="closeModal()"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <div
+      class="message"
+      id="message"
+    ></div>
+
+
+    <div class="form-group">
+
+      <label class="form-label">
+        ROLE
+      </label>
+
+      <select
+        id="role"
+        class="form-control"
+      >
+
+        <option value="user">
+          User
+        </option>
+
+        <option value="admin">
+          Admin
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label class="form-label">
+        PLAN
+      </label>
+
+      <select
+        id="plan"
+        class="form-control"
+        onchange="toggleDuration()"
+      >
+
+        <option value="free">
+          Free
+        </option>
+
+        <option value="premium">
+          Premium
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div
+      class="form-group"
+      id="durationGroup"
+    >
+
+      <label class="form-label">
+        PREMIUM DURATION
+      </label>
+
+      <select
+        id="duration"
+        class="form-control"
+      >
+
+        <option value="1">
+          1 Day
+        </option>
+
+        <option value="7">
+          7 Days
+        </option>
+
+        <option value="30">
+          30 Days
+        </option>
+
+        <option value="90">
+          90 Days
+        </option>
+
+        <option value="365">
+          365 Days
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label class="form-label">
+        STATUS
+      </label>
+
+      <select
+        id="status"
+        class="form-control"
+      >
+
+        <option value="active">
+          Active
+        </option>
+
+        <option value="banned">
+          Banned
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <button
+      class="save-btn"
+      id="saveBtn"
+      onclick="saveUser()"
+    >
+      Save Changes
+    </button>
+
+  </div>
+
+</div>
+
+
+<script>
+
+  let users = [];
+  let selectedUser = null;
+
+
+  // =====================================
+  // LOAD EVERYTHING
+  // =====================================
+
+  async function loadAll() {
+
+    try {
+
+      await Promise.all([
+        loadStats(),
+        loadUsers()
+      ]);
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+  }
+
+
+  // =====================================
+  // LOAD STATS
+  // =====================================
+
+  async function loadStats() {
+
+    const response =
+      await fetch("/api/admin/stats", {
+        credentials: "include"
+      });
+
+    const data =
+      await response.json();
+
+    if (!response.ok || !data.success) {
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        window.location.href =
+          "/login.html";
+      }
+
+      throw new Error(
+        data.error || "Failed to load stats"
+      );
+    }
+
+    document.getElementById(
+      "totalUsers"
+    ).textContent =
+      data.stats.users;
+
+    document.getElementById(
+      "premiumUsers"
+    ).textContent =
+      data.stats.premium_users;
+
+    document.getElementById(
+      "activeUsers"
+    ).textContent =
+      data.stats.active_users;
+
+    document.getElementById(
+      "licenseKeys"
+    ).textContent =
+      data.stats.license_keys;
+  }
+
+
+  // =====================================
+  // LOAD USERS
+  // =====================================
+
+  async function loadUsers(search = "") {
+
+    const url =
+      search
+        ? `/api/admin/users?search=${encodeURIComponent(search)}`
+        : "/api/admin/users";
+
+    const response =
+      await fetch(url, {
+        credentials: "include"
+      });
+
+    const data =
+      await response.json();
+
+    if (!response.ok || !data.success) {
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        window.location.href =
+          "/login.html";
+      }
+
+      throw new Error(
+        data.error || "Failed to load users"
+      );
+    }
+
+    users = data.users || [];
+
+    renderUsers();
+  }
+
+
+  // =====================================
+  // RENDER USERS
+  // =====================================
+
+  function renderUsers() {
+
+    const body =
+      document.getElementById(
+        "usersBody"
+      );
+
+    if (!users.length) {
+
+      body.innerHTML = `
+        <tr>
+          <td colspan="6" class="empty">
+            Tidak ada user ditemukan.
+          </td>
+        </tr>
+      `;
+
+      return;
+    }
+
+    body.innerHTML =
+      users.map(user => {
+
+        const roleBadge =
+          user.role === "admin"
+            ? `<span class="badge badge-admin">ADMIN</span>`
+            : `<span class="badge badge-user">USER</span>`;
+
+        const premium =
+          user.premium;
+
+        const planBadge =
+          premium
+            ? `<span class="badge badge-premium">PREMIUM</span>`
+            : `<span class="badge badge-free">FREE</span>`;
+
+        const statusBadge =
+          user.status === "active"
+            ? `<span class="badge badge-active">ACTIVE</span>`
+            : `<span class="badge badge-banned">BANNED</span>`;
+
+        return `
+          <tr>
+
+            <td>
+
+              <div class="username">
+                ${escapeHtml(user.username)}
+              </div>
+
+              <div class="email">
+                ${escapeHtml(user.email)}
+              </div>
+
+            </td>
+
+            <td>
+              ${roleBadge}
+            </td>
+
+            <td>
+              ${planBadge}
+            </td>
+
+            <td>
+              ${statusBadge}
+            </td>
+
+            <td>
+              ${formatDate(user.premium_expires_at)}
+            </td>
+
+            <td>
+
+              ${
+                user.username === "bilsx"
+
+                ? `<span style="
+                    color:#596476;
+                    font-size:11px;
+                  ">
+                    Super Admin
+                  </span>`
+
+                : `<button
+                    class="manage-btn"
+                    onclick="openManage(${user.id})"
+                  >
+                    Manage
+                  </button>`
+              }
+
+            </td>
+
+          </tr>
+        `;
+
+      }).join("");
+  }
+
+
+  // =====================================
+  // SEARCH
+  // =====================================
+
+  let searchTimer;
+
+  function searchUsers() {
+
+    clearTimeout(searchTimer);
+
+    const value =
+      document.getElementById(
+        "search"
+      ).value.trim();
+
+    searchTimer =
+      setTimeout(() => {
+
+        loadUsers(value);
+
+      }, 300);
+  }
+
+
+  // =====================================
+  // OPEN MANAGE
+  // =====================================
+
+  function openManage(id) {
+
+    selectedUser =
+      users.find(
+        user => user.id === id
+      );
+
+    if (!selectedUser) {
+      return;
+    }
+
+    document.getElementById(
+      "modalUser"
+    ).textContent =
+      `${selectedUser.username} • ${selectedUser.email}`;
+
+    document.getElementById(
+      "role"
+    ).value =
+      selectedUser.role;
+
+    document.getElementById(
+      "plan"
+    ).value =
+      selectedUser.plan;
+
+    document.getElementById(
+      "status"
+    ).value =
+      selectedUser.status;
+
+    document.getElementById(
+      "message"
+    ).className =
+      "message";
+
+    toggleDuration();
+
+    document.getElementById(
+      "modal"
+    ).classList.add("show");
+  }
+
+
+  // =====================================
+  // CLOSE MODAL
+  // =====================================
+
+  function closeModal() {
+
+    document.getElementById(
+      "modal"
+    ).classList.remove("show");
+
+    selectedUser = null;
+  }
+
+
+  // =====================================
+  // PREMIUM DURATION
+  // =====================================
+
+  function toggleDuration() {
+
+    const premium =
+      document.getElementById(
+        "plan"
+      ).value === "premium";
+
+    document.getElementById(
+      "durationGroup"
+    ).style.display =
+      premium
+        ? "block"
+        : "none";
+  }
+
+
+  // =====================================
+  // SAVE USER
+  // =====================================
+
+  async function saveUser() {
+
+    if (!selectedUser) {
+      return;
+    }
+
+    const button =
+      document.getElementById(
+        "saveBtn"
+      );
+
+    button.disabled = true;
+    button.textContent = "Saving...";
+
+    const payload = {
+
+      user_id:
+        selectedUser.id,
+
+      role:
+        document.getElementById(
+          "role"
+        ).value,
+
+      plan:
+        document.getElementById(
+          "plan"
+        ).value,
+
+      status:
+        document.getElementById(
+          "status"
+        ).value
+    };
+
+
+    if (payload.plan === "premium") {
+
+      payload.duration_days =
+        Number(
+          document.getElementById(
+            "duration"
+          ).value
+        );
+    }
+
+
+    try {
+
+      const response =
+        await fetch(
+          "/api/admin/user-update",
+          {
+            method: "POST",
+
+            credentials: "include",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify(payload)
+          }
+        );
+
+
+      const data =
+        await response.json();
+
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+
+        throw new Error(
+          data.error ||
+          "Failed to update user"
+        );
+      }
+
+
+      showMessage(
+        "User berhasil diperbarui.",
+        "success"
+      );
+
+
+      await loadAll();
+
+
+      setTimeout(
+        closeModal,
+        700
+      );
+
+
+    } catch (error) {
+
+      showMessage(
+        error.message,
+        "error"
+      );
+
+    } finally {
+
+      button.disabled = false;
+      button.textContent =
+        "Save Changes";
+    }
+  }
+
+
+  // =====================================
+  // MESSAGE
+  // =====================================
+
+  function showMessage(
+    text,
+    type
+  ) {
+
+    const element =
+      document.getElementById(
+        "message"
+      );
+
+    element.textContent =
+      text;
+
+    element.className =
+      `message show ${type}`;
+  }
+
+
+  // =====================================
+  // DATE
+  // =====================================
+
+  function formatDate(timestamp) {
+
+    if (!timestamp) {
+      return "—";
+    }
+
+    const date =
+      new Date(
+        Number(timestamp)
+      );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "—";
+    }
+
+    return date.toLocaleDateString(
+      "id-ID",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      }
+    );
+  }
+
+
+  // =====================================
+  // HTML ESCAPE
+  // =====================================
+
+  function escapeHtml(value) {
+
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+
+  // =====================================
+  // SCROLL USERS
+  // =====================================
+
+  function scrollUsers() {
+
+    document.getElementById(
+      "usersPanel"
+    ).scrollIntoView({
+      behavior: "smooth"
+    });
+  }
+
+
+  // =====================================
+  // COMING SOON
+  // =====================================
+
+  function comingSoon() {
+
+    alert(
+      "License Key Management akan kita buat pada tahap berikutnya."
+    );
+  }
+
+
+  // =====================================
+  // INITIALIZE
+  // =====================================
+
+  loadAll();
+
+</script>
+
+</body>
+</html>
