@@ -1,133 +1,327 @@
 /* =========================================================
-   BILSX - PUBLIC APP.JS
+   BILSX APP.JS
    ========================================================= */
 
-/* ---------------------------------------------------------
-   BASIC HELPERS
-   --------------------------------------------------------- */
+const $ = (selector) => document.querySelector(selector);
 
-const $ = (selector, root = document) => {
-    return root.querySelector(selector);
-};
-
-const $$ = (selector, root = document) => {
-    return [...root.querySelectorAll(selector)];
-};
-
-
-/* ---------------------------------------------------------
-   API HELPER
-   --------------------------------------------------------- */
+/* =========================================================
+   API
+   ========================================================= */
 
 async function api(url, options = {}) {
-
     const response = await fetch(url, {
         credentials: "include",
-        cache: "no-store",
-
         ...options,
-
         headers: {
-            ...(options.body
-                ? {
-                    "Content-Type":
-                        "application/json"
-                }
-                : {}),
-
+            "Content-Type": "application/json",
             ...(options.headers || {})
         }
     });
 
-    let data = {};
+    let data;
 
     try {
         data = await response.json();
     } catch {
-        throw new Error(
-            `Server returned HTTP ${response.status}`
-        );
+        data = {
+            success: false,
+            error: "Invalid server response"
+        };
     }
 
-    if (
-        !response.ok ||
-        data.success === false
-    ) {
+    if (!response.ok || data.success === false) {
         throw new Error(
             data.error ||
             data.message ||
-            `HTTP ${response.status}`
+            `Request failed (${response.status})`
         );
     }
 
     return data;
 }
 
-
-/* ---------------------------------------------------------
+/* =========================================================
    MESSAGE
-   --------------------------------------------------------- */
+   ========================================================= */
 
-function showMessage(
-    selector,
-    text,
-    type = "error"
-) {
+function showMessage(message, type = "error") {
+    const el =
+        $("#dashboardMsg") ||
+        $("#message") ||
+        $("#getKeyMessage");
 
-    const element = $(selector);
+    if (!el) {
+        console.log(message);
+        return;
+    }
 
-    if (!element) return;
-
-    element.textContent = text;
-    element.style.display = "block";
-
-    element.classList.remove(
-        "success",
-        "error"
-    );
-
-    element.classList.add(type);
+    el.hidden = false;
+    el.textContent = message;
+    el.dataset.type = type;
 }
 
-
-function hideMessage(selector) {
-
-    const element = $(selector);
-
-    if (!element) return;
-
-    element.style.display = "none";
-    element.textContent = "";
-}
-
-
-/* ---------------------------------------------------------
-   SESSION
-   --------------------------------------------------------- */
+/* =========================================================
+   AUTH
+   ========================================================= */
 
 async function getCurrentUser() {
+    return await api("/api/me");
+}
+
+async function requireAuth() {
+    try {
+        const data = await getCurrentUser();
+
+        if (!data.success || !data.user) {
+            window.location.href = "/login.html";
+            return null;
+        }
+
+        return data.user;
+
+    } catch (error) {
+        console.error("Auth error:", error);
+        window.location.href = "/login.html";
+        return null;
+    }
+}
+
+/* =========================================================
+   LOGOUT
+   ========================================================= */
+
+async function logout() {
+    try {
+        await api("/api/logout", {
+            method: "POST"
+        });
+    } catch (error) {
+        console.error("Logout error:", error);
+    } finally {
+        window.location.href = "/login.html";
+    }
+}
+
+function setupLogout() {
+    document
+        .querySelectorAll("[data-logout]")
+        .forEach(button => {
+
+            button.addEventListener("click", async event => {
+                event.preventDefault();
+                await logout();
+            });
+
+        });
+}
+
+/* =========================================================
+   DATE
+   ========================================================= */
+
+function formatDate(timestamp) {
+    if (
+        timestamp === null ||
+        timestamp === undefined ||
+        timestamp === ""
+    ) {
+        return "—";
+    }
+
+    const number = Number(timestamp);
+
+    if (!Number.isFinite(number)) {
+        return "—";
+    }
+
+    return new Date(number).toLocaleString();
+}
+
+/* =========================================================
+   REMAINING TIME
+   ========================================================= */
+
+function formatRemaining(timestamp) {
+    const expires = Number(timestamp);
+
+    if (!Number.isFinite(expires)) {
+        return "—";
+    }
+
+    const remaining = expires - Date.now();
+
+    if (remaining <= 0) {
+        return "Expired";
+    }
+
+    const totalSeconds =
+        Math.floor(remaining / 1000);
+
+    const days =
+        Math.floor(totalSeconds / 86400);
+
+    const hours =
+        Math.floor(
+            (totalSeconds % 86400) / 3600
+        );
+
+    const minutes =
+        Math.floor(
+            (totalSeconds % 3600) / 60
+        );
+
+    const seconds =
+        totalSeconds % 60;
+
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+    }
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
+
+    if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+
+    return `${seconds}s`;
+}
+
+/* =========================================================
+   KEY
+   ========================================================= */
+
+function findFreeKey(keys) {
+    if (!Array.isArray(keys)) {
+        return null;
+    }
+
+    return (
+        keys.find(key =>
+            String(key.type || "")
+                .toLowerCase() === "free"
+        ) ||
+        keys[0] ||
+        null
+    );
+}
+
+function renderFreeKey(key) {
+    const noKey = $("#noKey");
+    const keyBox = $("#keyBox");
+
+    if (!key) {
+
+        if (noKey) {
+            noKey.hidden = false;
+        }
+
+        if (keyBox) {
+            keyBox.hidden = true;
+        }
+
+        window.BILSX_CURRENT_KEY = null;
+
+        return;
+    }
+
+    if (noKey) {
+        noKey.hidden = true;
+    }
+
+    if (keyBox) {
+        keyBox.hidden = false;
+    }
+
+    const keyElement = $("#licenseKey");
+
+    if (keyElement) {
+        keyElement.textContent =
+            key.key || "—";
+    }
+
+    const statusElement = $("#keyStatus");
+
+    if (statusElement) {
+
+        let status =
+            String(
+                key.status || "unknown"
+            ).toUpperCase();
+
+        if (
+            key.expires_at &&
+            Number(key.expires_at) <= Date.now()
+        ) {
+            status = "EXPIRED";
+        }
+
+        statusElement.textContent = status;
+    }
+
+    const expiryElement = $("#keyExpiry");
+
+    if (expiryElement) {
+
+        if (key.expires_at) {
+
+            const expires =
+                Number(key.expires_at);
+
+            if (
+                Number.isFinite(expires) &&
+                expires <= Date.now()
+            ) {
+                expiryElement.textContent =
+                    "Expired";
+            } else {
+                expiryElement.textContent =
+                    "Remaining: " +
+                    formatRemaining(expires);
+            }
+
+        } else {
+
+            expiryElement.textContent =
+                "No expiration";
+        }
+    }
+
+    window.BILSX_CURRENT_KEY = key;
+}
+
+/* =========================================================
+   LOAD KEYS
+   ========================================================= */
+
+async function loadUserKeys() {
 
     try {
 
         const data =
-            await api(
-                "/api/me"
-            );
+            await api("/api/keys");
 
-        if (
-            data &&
-            data.success &&
-            data.user
-        ) {
-            return data.user;
-        }
+        const keys =
+            Array.isArray(data.keys)
+                ? data.keys
+                : [];
 
-        return null;
+        const freeKey =
+            findFreeKey(keys);
+
+        renderFreeKey(freeKey);
+
+        return freeKey;
 
     } catch (error) {
 
-        console.log(
-            "No active session:",
+        console.error(
+            "Failed to load keys:",
+            error
+        );
+
+        showMessage(
             error.message
         );
 
@@ -135,1378 +329,668 @@ async function getCurrentUser() {
     }
 }
 
+/* =========================================================
+   GET KEY MODAL
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   REDIRECT BASED ON ROLE
-   --------------------------------------------------------- */
+function openKeyModal() {
 
-function redirectUser(user) {
+    const modal =
+        $("#keyModal");
 
-    if (!user) {
-
-        window.location.replace(
-            "/login.html"
-        );
-
+    if (!modal) {
         return;
     }
 
-    const role =
-        String(
-            user.role || ""
-        ).toLowerCase();
+    modal.hidden = false;
 
-    if (role === "admin") {
+    const message =
+        $("#getKeyMessage");
 
-        window.location.replace(
-            "/admin.html"
-        );
-
-    } else {
-
-        window.location.replace(
-            "/dashboard.html"
-        );
+    if (message) {
+        message.textContent = "";
     }
 }
 
+function closeKeyModal() {
 
-/* ---------------------------------------------------------
-   CHECK SESSION ON LOGIN PAGE
-   --------------------------------------------------------- */
+    const modal =
+        $("#keyModal");
 
-async function checkLoginSession() {
-
-    const user =
-        await getCurrentUser();
-
-    if (!user) {
-        return false;
-    }
-
-    redirectUser(user);
-
-    return true;
-}
-
-
-/* ---------------------------------------------------------
-   LOGIN
-   --------------------------------------------------------- */
-
-function setupLogin() {
-
-    const form =
-        $("#loginForm");
-
-    if (!form) {
-
-        console.error(
-            "BILSX: #loginForm tidak ditemukan"
-        );
-
+    if (!modal) {
         return;
     }
 
-
-    form.addEventListener(
-        "submit",
-        async event => {
-
-            event.preventDefault();
-
-
-            const loginInput =
-                form.querySelector(
-                    '[name="login"]'
-                );
-
-            const passwordInput =
-                form.querySelector(
-                    '[name="password"]'
-                );
-
-            const button =
-                form.querySelector(
-                    'button[type="submit"]'
-                );
-
-
-            const login =
-                loginInput
-                    ?.value
-                    ?.trim() || "";
-
-            const password =
-                passwordInput
-                    ?.value || "";
-
-
-            hideMessage(
-                "#loginMessage"
-            );
-
-
-            if (
-                !login ||
-                !password
-            ) {
-
-                showMessage(
-                    "#loginMessage",
-                    "Username/email dan password wajib diisi."
-                );
-
-                return;
-            }
-
-
-            if (button) {
-
-                button.disabled =
-                    true;
-
-                button.dataset.oldText =
-                    button.textContent;
-
-                button.textContent =
-                    "Logging in...";
-            }
-
-
-            try {
-
-                console.log(
-                    "BILSX: sending login request..."
-                );
-
-
-                const data =
-                    await api(
-                        "/api/login",
-                        {
-                            method: "POST",
-
-                            body:
-                                JSON.stringify({
-                                    login:
-                                        login,
-
-                                    password:
-                                        password
-                                })
-                        }
-                    );
-
-
-                console.log(
-                    "BILSX: login success",
-                    data
-                );
-
-
-                /*
-                 * Login berhasil.
-                 *
-                 * Jangan menyimpan token
-                 * session di localStorage.
-                 *
-                 * Cookie bilsx_session
-                 * dikelola oleh server.
-                 */
-
-
-                const user =
-                    data.user;
-
-
-                if (!user) {
-
-                    throw new Error(
-                        "Login berhasil tetapi data user tidak ditemukan."
-                    );
-                }
-
-
-                redirectUser(
-                    user
-                );
-
-
-            } catch (error) {
-
-                console.error(
-                    "BILSX LOGIN ERROR:",
-                    error
-                );
-
-
-                showMessage(
-                    "#loginMessage",
-                    error.message ||
-                    "Login gagal."
-                );
-
-
-                if (button) {
-
-                    button.disabled =
-                        false;
-
-                    button.textContent =
-                        button.dataset.oldText ||
-                        "Login";
-                }
-            }
-
-        }
-    );
+    modal.hidden = true;
 }
 
+/* =========================================================
+   LINKVERTISE
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   REGISTER
-   --------------------------------------------------------- */
+function showLinkvertise(url) {
 
-function setupRegister() {
+    const message =
+        $("#getKeyMessage");
 
-    const form =
-        $("#registerForm");
-
-    if (!form) {
+    if (!message) {
         return;
     }
 
+    message.innerHTML = "";
 
-    form.addEventListener(
-        "submit",
-        async event => {
+    const title =
+        document.createElement("div");
 
-            event.preventDefault();
+    title.textContent =
+        "Your Free Key is ready";
 
+    title.style.marginBottom =
+        "12px";
 
-            const usernameInput =
-                form.querySelector(
-                    '[name="username"]'
-                );
+    const button =
+        document.createElement("a");
 
-            const emailInput =
-                form.querySelector(
-                    '[name="email"]'
-                );
+    button.href = url;
+    button.target = "_blank";
+    button.rel = "noopener noreferrer";
 
-            const passwordInput =
-                form.querySelector(
-                    '[name="password"]'
-                );
+    button.textContent =
+        "CONTINUE TO LINKVERTISE";
 
-            const confirmInput =
-                form.querySelector(
-                    '[name="confirm_password"]'
-                );
+    button.style.display =
+        "inline-block";
 
+    button.style.padding =
+        "12px 18px";
 
-            const button =
-                form.querySelector(
-                    'button[type="submit"]'
-                );
+    button.style.borderRadius =
+        "10px";
 
+    button.style.textDecoration =
+        "none";
 
-            const username =
-                usernameInput
-                    ?.value
-                    ?.trim() || "";
+    button.style.fontWeight =
+        "600";
 
-            const email =
-                emailInput
-                    ?.value
-                    ?.trim() || "";
-
-            const password =
-                passwordInput
-                    ?.value || "";
-
-            const confirmPassword =
-                confirmInput
-                    ?.value || "";
-
-
-            hideMessage(
-                "#registerMessage"
-            );
-
-
-            if (
-                !username ||
-                !email ||
-                !password
-            ) {
-
-                showMessage(
-                    "#registerMessage",
-                    "Semua field wajib diisi."
-                );
-
-                return;
-            }
-
-
-            if (
-                confirmInput &&
-                password !==
-                confirmPassword
-            ) {
-
-                showMessage(
-                    "#registerMessage",
-                    "Konfirmasi password tidak sama."
-                );
-
-                return;
-            }
-
-
-            if (button) {
-
-                button.disabled =
-                    true;
-
-                button.dataset.oldText =
-                    button.textContent;
-
-                button.textContent =
-                    "Creating...";
-            }
-
-
-            try {
-
-                const data =
-                    await api(
-                        "/api/register",
-                        {
-                            method: "POST",
-
-                            body:
-                                JSON.stringify({
-                                    username,
-                                    email,
-                                    password
-                                })
-                        }
-                    );
-
-
-                console.log(
-                    "BILSX REGISTER SUCCESS:",
-                    data
-                );
-
-
-                showMessage(
-                    "#registerMessage",
-                    data.message ||
-                    "Account berhasil dibuat.",
-                    "success"
-                );
-
-
-                form.reset();
-
-
-                /*
-                 * Register tidak otomatis
-                 * membuat session.
-                 *
-                 * User diarahkan ke login.
-                 */
-
-                setTimeout(
-                    () => {
-
-                        window.location.replace(
-                            "/login.html"
-                        );
-
-                    },
-                    800
-                );
-
-
-            } catch (error) {
-
-                console.error(
-                    "BILSX REGISTER ERROR:",
-                    error
-                );
-
-
-                showMessage(
-                    "#registerMessage",
-                    error.message ||
-                    "Register gagal."
-                );
-
-
-                if (button) {
-
-                    button.disabled =
-                        false;
-
-                    button.textContent =
-                        button.dataset.oldText ||
-                        "Create Account";
-                }
-            }
-
-        }
-    );
+    message.appendChild(title);
+    message.appendChild(button);
 }
 
+/* =========================================================
+   START FREE KEY
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   REQUIRE LOGIN
-   --------------------------------------------------------- */
+async function startFreeKey() {
 
-async function requireLogin() {
+    const button =
+        $("#startGetKeyBtn");
 
-    const user =
-        await getCurrentUser();
+    const message =
+        $("#getKeyMessage");
 
-    if (!user) {
-
-        window.location.replace(
-            "/login.html"
-        );
-
-        return null;
+    if (button) {
+        button.disabled = true;
     }
 
-    return user;
-}
-
-
-/* ---------------------------------------------------------
-   DASHBOARD USER
-   --------------------------------------------------------- */
-
-async function loadDashboard() {
-
-    const user =
-        await requireLogin();
-
-    if (!user) {
-        return;
+    if (message) {
+        message.textContent =
+            "Creating your Free Key...";
     }
-
-
-    /*
-     * Admin tidak boleh berada
-     * di dashboard user.
-     */
-
-    if (
-        String(
-            user.role || ""
-        ).toLowerCase() ===
-        "admin"
-    ) {
-
-        window.location.replace(
-            "/admin.html"
-        );
-
-        return;
-    }
-
-
-    /*
-     * Username
-     */
-
-    $$("[data-user]")
-        .forEach(element => {
-
-            const field =
-                element.dataset.user;
-
-            if (
-                Object.prototype
-                    .hasOwnProperty
-                    .call(user, field)
-            ) {
-
-                element.textContent =
-                    user[field] ??
-                    "—";
-            }
-
-        });
-
-
-    /*
-     * Username fallback
-     */
-
-    const name =
-        $("#name");
-
-    if (name) {
-
-        name.textContent =
-            user.username ||
-            "User";
-    }
-
-
-    /*
-     * Role
-     */
-
-    const role =
-        $("[data-user-role]");
-
-    if (role) {
-
-        role.textContent =
-            user.role ||
-            "user";
-    }
-
-
-    /*
-     * Status
-     */
-
-    const status =
-        $("[data-user-status]");
-
-    if (status) {
-
-        status.textContent =
-            user.status ||
-            "active";
-    }
-
-
-    /*
-     * Plan
-     */
-
-    const plan =
-        $("#plan");
-
-    if (plan) {
-
-        if (user.premium) {
-
-            plan.textContent =
-                "Premium";
-
-        } else {
-
-            plan.textContent =
-                user.plan ||
-                "Free";
-        }
-    }
-
-
-    /*
-     * Load keys
-     */
-
-    await loadKeys();
-}
-
-
-/* ---------------------------------------------------------
-   LOAD USER KEYS
-   --------------------------------------------------------- */
-
-async function loadKeys() {
 
     try {
 
         const data =
             await api(
-                "/api/keys"
+                "/api/free-key",
+                {
+                    method: "POST"
+                }
             );
 
-
-        const keys =
-            data.keys ||
-            [];
-
-
         /*
-         * Summary
+         * Real Linkvertise URL.
+         *
+         * Backend may return one of these
+         * names depending on implementation.
          */
 
-        const total =
-            $("#total");
+        const link =
+            data.linkvertise_url ||
+            data.redirect_url ||
+            data.url ||
+            data.link ||
+            null;
 
-        const active =
-            $("#active");
+        if (link) {
 
-        const expired =
-            $("#expired");
+            showLinkvertise(link);
 
-
-        if (total) {
-
-            total.textContent =
-                data.summary?.total ??
-                keys.length;
+            return;
         }
-
-
-        if (active) {
-
-            active.textContent =
-                data.summary?.active ??
-                keys.filter(
-                    key =>
-                        key.status ===
-                        "active"
-                ).length;
-        }
-
-
-        if (expired) {
-
-            expired.textContent =
-                data.summary?.expired ??
-                keys.filter(
-                    key =>
-                        key.status ===
-                        "expired"
-                ).length;
-        }
-
 
         /*
-         * Render key table
+         * If backend has already completed
+         * the claim and returned a key.
          */
 
-        renderKeys(
-            keys
+        if (data.key) {
+
+            if (message) {
+                message.textContent =
+                    "Free Key berhasil dibuat.";
+            }
+
+            await loadUserKeys();
+
+            setTimeout(() => {
+                closeKeyModal();
+            }, 1000);
+
+            return;
+        }
+
+        /*
+         * Backend created a claim but did
+         * not return a Linkvertise URL.
+         */
+
+        throw new Error(
+            "Linkvertise URL tidak diberikan oleh server."
         );
-
 
     } catch (error) {
 
         console.error(
-            "LOAD KEYS ERROR:",
+            "Get Key error:",
             error
         );
 
+        if (message) {
+            message.textContent =
+                error.message;
+        }
 
-        const table =
-            $("#keys");
+    } finally {
 
-        if (table) {
-
-            table.innerHTML = `
-                <tr>
-                    <td colspan="4">
-                        ${escapeHtml(
-                            error.message
-                        )}
-                    </td>
-                </tr>
-            `;
+        if (button) {
+            button.disabled = false;
         }
     }
 }
 
-
-/* ---------------------------------------------------------
-   RENDER KEYS
-   --------------------------------------------------------- */
-
-function renderKeys(
-    keys
-) {
-
-    const table =
-        $("#keys");
-
-    if (!table) {
-        return;
-    }
-
-
-    if (!keys.length) {
-
-        table.innerHTML = `
-            <tr>
-                <td colspan="4">
-                    No keys yet.
-                </td>
-            </tr>
-        `;
-
-        return;
-    }
-
-
-    table.innerHTML =
-        keys
-            .map(
-                key => {
-
-                    let expiry =
-                        "Lifetime";
-
-
-                    if (
-                        key.expires_at
-                    ) {
-
-                        const timestamp =
-                            Number(
-                                key.expires_at
-                            );
-
-
-                        if (
-                            Number.isFinite(
-                                timestamp
-                            )
-                        ) {
-
-                            expiry =
-                                new Date(
-                                    timestamp
-                                )
-                                .toLocaleString();
-                        }
-                    }
-
-
-                    return `
-                        <tr>
-
-                            <td>
-                                ${escapeHtml(
-                                    key.key
-                                )}
-                            </td>
-
-                            <td>
-                                ${escapeHtml(
-                                    key.status
-                                )}
-                            </td>
-
-                            <td>
-                                ${expiry}
-                            </td>
-
-                            <td>
-
-                                <button
-                                    type="button"
-                                    class="copy-key"
-                                    data-key="${escapeHtml(
-                                        key.key
-                                    )}"
-                                >
-                                    Copy
-                                </button>
-
-                            </td>
-
-                        </tr>
-                    `;
-                }
-            )
-            .join("");
-}
-
-
-/* ---------------------------------------------------------
-   GET FREE KEY
-   --------------------------------------------------------- */
+/* =========================================================
+   GET KEY EVENTS
+   ========================================================= */
 
 function setupGetKey() {
 
-    const button =
+    const getKeyButton =
+        $("#getKeyBtn");
+
+    if (getKeyButton) {
+
+        getKeyButton.addEventListener(
+            "click",
+            openKeyModal
+        );
+    }
+
+    const addKeyButton =
+        $("#addKeyBtn");
+
+    if (addKeyButton) {
+
+        addKeyButton.addEventListener(
+            "click",
+            openKeyModal
+        );
+    }
+
+    const closeButton =
+        $("#closeKeyModal");
+
+    if (closeButton) {
+
+        closeButton.addEventListener(
+            "click",
+            closeKeyModal
+        );
+    }
+
+    const modal =
+        $("#keyModal");
+
+    if (modal) {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target === modal
+                ) {
+                    closeKeyModal();
+                }
+
+            }
+        );
+    }
+
+    const startButton =
         $("#startGetKeyBtn");
+
+    if (startButton) {
+
+        startButton.addEventListener(
+            "click",
+            startFreeKey
+        );
+    }
+}
+
+/* =========================================================
+   COPY KEY
+   ========================================================= */
+
+function setupCopyKey() {
+
+    const button =
+        $("#copyKeyBtn");
 
     if (!button) {
         return;
     }
 
-
     button.addEventListener(
         "click",
         async () => {
 
+            const keyElement =
+                $("#licenseKey");
+
+            if (!keyElement) {
+                return;
+            }
+
+            const key =
+                keyElement.textContent.trim();
+
             if (
-                button.disabled
+                !key ||
+                key === "—"
             ) {
                 return;
             }
 
-
-            button.disabled =
-                true;
-
-            button.dataset.oldText =
-                button.textContent;
-
-            button.textContent =
-                "Loading...";
-
-
-            hideMessage(
-                "#getKeyMessage"
-            );
-
-
             try {
 
-                /*
-                 * Endpoint ini harus
-                 * mengikuti free-key.js
-                 * yang ada di backend.
-                 */
-
-                const data =
-                    await api(
-                        "/api/free-key",
-                        {
-                            method: "POST"
-                        }
-                    );
-
-
-                console.log(
-                    "FREE KEY RESPONSE:",
-                    data
-                );
-
-
-                if (
-                    data.key
-                ) {
-
-                    displayGeneratedKey(
-                        data.key
-                    );
-
-                } else {
-
-                    showMessage(
-                        "#getKeyMessage",
-                        data.message ||
-                        "Key berhasil diproses.",
-                        "success"
-                    );
-                }
-
-
-                /*
-                 * Refresh dashboard
-                 */
-
-                await loadKeys();
-
-
-            } catch (error) {
-
-                console.error(
-                    "GET KEY ERROR:",
-                    error
-                );
-
-
-                showMessage(
-                    "#getKeyMessage",
-                    error.message ||
-                    "Gagal mendapatkan key."
-                );
-
-
-            } finally {
-
-                button.disabled =
-                    false;
-
-                button.textContent =
-                    button.dataset.oldText ||
-                    "Get Key";
-            }
-
-        }
-    );
-}
-
-
-/* ---------------------------------------------------------
-   DISPLAY GENERATED KEY
-   --------------------------------------------------------- */
-
-function displayGeneratedKey(
-    key
-) {
-
-    const value =
-        typeof key === "string"
-            ? key
-            : key.key;
-
-
-    if (!value) {
-        return;
-    }
-
-
-    const keyElement =
-        $("#licenseKey");
-
-
-    if (keyElement) {
-
-        keyElement.textContent =
-            value;
-    }
-
-
-    const statusElement =
-        $("#keyStatus");
-
-
-    if (
-        statusElement &&
-        typeof key !== "string"
-    ) {
-
-        statusElement.textContent =
-            key.status ||
-            "active";
-    }
-
-
-    const expiryElement =
-        $("#keyExpiry");
-
-
-    if (
-        expiryElement &&
-        typeof key !== "string"
-    ) {
-
-        if (
-            key.expires_at
-        ) {
-
-            expiryElement.textContent =
-                new Date(
-                    Number(
-                        key.expires_at
-                    )
-                )
-                .toLocaleString();
-
-        } else {
-
-            expiryElement.textContent =
-                "Lifetime";
-        }
-    }
-
-
-    const keyBox =
-        $("#keyBox");
-
-
-    if (keyBox) {
-
-        keyBox.hidden =
-            false;
-    }
-
-
-    const noKey =
-        $("#noKey");
-
-
-    if (noKey) {
-
-        noKey.hidden =
-            true;
-    }
-}
-
-
-/* ---------------------------------------------------------
-   COPY KEY
-   --------------------------------------------------------- */
-
-function setupCopyKey() {
-
-    document.addEventListener(
-        "click",
-        async event => {
-
-            const button =
-                event.target.closest(
-                    ".copy-key"
-                );
-
-            if (!button) {
-                return;
-            }
-
-
-            const key =
-                button.dataset.key;
-
-
-            if (!key) {
-                return;
-            }
-
-
-            try {
-
-                await navigator
-                    .clipboard
-                    .writeText(
-                        key
-                    );
-
+                await navigator.clipboard
+                    .writeText(key);
 
                 const oldText =
                     button.textContent;
 
-
                 button.textContent =
-                    "Copied!";
+                    "COPIED";
 
-
-                setTimeout(
-                    () => {
-
-                        button.textContent =
-                            oldText;
-
-                    },
-                    1200
-                );
-
+                setTimeout(() => {
+                    button.textContent =
+                        oldText;
+                }, 1500);
 
             } catch (error) {
 
                 console.error(
-                    "COPY KEY ERROR:",
+                    "Copy failed:",
                     error
                 );
 
+                button.textContent =
+                    "FAILED";
 
-                /*
-                 * Fallback untuk browser
-                 * yang tidak mengizinkan
-                 * navigator.clipboard.
-                 */
-
-                try {
-
-                    const textarea =
-                        document.createElement(
-                            "textarea"
-                        );
-
-                    textarea.value =
-                        key;
-
-                    textarea.style.position =
-                        "fixed";
-
-                    textarea.style.opacity =
-                        "0";
-
-                    document.body.appendChild(
-                        textarea
-                    );
-
-                    textarea.select();
-
-                    document.execCommand(
-                        "copy"
-                    );
-
-                    textarea.remove();
+                setTimeout(() => {
 
                     button.textContent =
-                        "Copied!";
+                        "COPY";
 
-                    setTimeout(
-                        () => {
-
-                            button.textContent =
-                                "Copy";
-
-                        },
-                        1200
-                    );
-
-                } catch {
-                    alert(
-                        "Tidak dapat menyalin key."
-                    );
-                }
+                }, 1500);
             }
-
         }
     );
 }
 
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   LOGOUT
-   --------------------------------------------------------- */
+async function dashboard() {
 
-function setupLogout() {
+    const user =
+        await requireAuth();
 
-    const buttons =
-        $$(
-            "[data-logout], #logoutBtn"
-        );
-
-
-    if (!buttons.length) {
+    if (!user) {
         return;
     }
 
+    window.BILSX_USER =
+        user;
 
-    buttons.forEach(
-        button => {
+    const name =
+        $("#name");
 
-            button.addEventListener(
-                "click",
-                async event => {
+    if (name) {
+        name.textContent =
+            user.username || "User";
+    }
 
-                    event.preventDefault();
-                    event.stopPropagation();
+    const username =
+        $("#username");
 
+    if (username) {
+        username.textContent =
+            user.username || "—";
+    }
 
-                    if (
-                        button.dataset
-                            .loggingOut ===
-                        "1"
-                    ) {
-                        return;
-                    }
+    const status =
+        $("#status");
 
+    if (status) {
+        status.textContent =
+            user.status || "—";
+    }
 
-                    button.dataset
-                        .loggingOut =
-                        "1";
+    const role =
+        $("#role");
 
+    if (role) {
 
-                    button.disabled =
-                        true;
+        role.textContent =
+            String(
+                user.role || "user"
+            ).toUpperCase();
+    }
 
+    const plan =
+        $("#plan");
 
-                    const oldText =
-                        button.textContent;
+    const isAdmin =
+        String(
+            user.role || ""
+        ).toLowerCase() === "admin";
 
+    const isPremium =
+        Boolean(user.premium);
 
-                    button.textContent =
-                        "Logging out...";
+    if (plan) {
 
-
-                    try {
-
-                        await api(
-                            "/api/logout",
-                            {
-                                method: "POST"
-                            }
-                        );
-
-
-                    } catch (error) {
-
-                        console.error(
-                            "LOGOUT ERROR:",
-                            error
-                        );
-
-
-                    } finally {
-
-                        /*
-                         * Redirect walaupun
-                         * server mengembalikan
-                         * error.
-                         */
-
-                        window.location.replace(
-                            "/login.html?logged_out=1"
-                        );
-                    }
-
-                }
-            );
-
+        if (isAdmin) {
+            plan.textContent =
+                "ADMIN";
+        } else if (isPremium) {
+            plan.textContent =
+                "PREMIUM";
+        } else {
+            plan.textContent =
+                "FREE";
         }
-    );
+    }
+
+    /* =====================================================
+       PREMIUM INFO
+       ===================================================== */
+
+    const premiumInfo =
+        $("#premiumInfo");
+
+    if (premiumInfo) {
+
+        if (isAdmin) {
+
+            premiumInfo.textContent =
+                "Administrator — Full access";
+
+        } else if (isPremium) {
+
+            if (user.premium_expires_at) {
+
+                premiumInfo.textContent =
+                    "Premium expires: " +
+                    formatDate(
+                        user.premium_expires_at
+                    );
+
+            } else {
+
+                premiumInfo.textContent =
+                    "Premium active";
+            }
+
+        } else {
+
+            premiumInfo.textContent =
+                "Free account";
+        }
+    }
+
+    /* =====================================================
+       PREMIUM FEATURES
+       ===================================================== */
+
+    const growscan =
+        $("#growscanAccess");
+
+    const fastFriend =
+        $("#fastFriendAccess");
+
+    if (isAdmin || isPremium) {
+
+        if (growscan) {
+            growscan.textContent =
+                "ACTIVE";
+        }
+
+        if (fastFriend) {
+            fastFriend.textContent =
+                "ACTIVE";
+        }
+
+    } else {
+
+        if (growscan) {
+            growscan.textContent =
+                "PREMIUM";
+        }
+
+        if (fastFriend) {
+            fastFriend.textContent =
+                "PREMIUM";
+        }
+    }
+
+    /* =====================================================
+       FREE KEY
+       ===================================================== */
+
+    const keyPanel =
+        document.querySelector(
+            ".key-panel"
+        );
+
+    if (isAdmin || isPremium) {
+
+        if (keyPanel) {
+            keyPanel.style.display =
+                "none";
+        }
+
+    } else {
+
+        if (keyPanel) {
+            keyPanel.style.display =
+                "";
+        }
+
+        await loadUserKeys();
+    }
 }
 
+/* =========================================================
+   KEY TIMER
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   HTML ESCAPE
-   --------------------------------------------------------- */
+function startKeyTimer() {
 
-function escapeHtml(
-    value
-) {
+    setInterval(() => {
 
-    return String(
-        value ?? ""
-    )
-    .replace(
-        /[&<>"']/g,
-        character => {
+        const key =
+            window.BILSX_CURRENT_KEY;
 
-            const entities = {
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;"
-            };
-
-            return entities[
-                character
-            ];
+        if (!key) {
+            return;
         }
-    );
+
+        const expiry =
+            $("#keyExpiry");
+
+        const status =
+            $("#keyStatus");
+
+        if (!expiry || !status) {
+            return;
+        }
+
+        if (!key.expires_at) {
+            return;
+        }
+
+        const timestamp =
+            Number(key.expires_at);
+
+        if (!Number.isFinite(timestamp)) {
+            return;
+        }
+
+        if (timestamp <= Date.now()) {
+
+            status.textContent =
+                "EXPIRED";
+
+            expiry.textContent =
+                "Expired";
+
+        } else {
+
+            status.textContent =
+                "ACTIVE";
+
+            expiry.textContent =
+                "Remaining: " +
+                formatRemaining(timestamp);
+        }
+
+    }, 1000);
 }
 
+/* =========================================================
+   LOGIN PAGE
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   INITIALIZATION
-   --------------------------------------------------------- */
+async function loginPage() {
+
+    try {
+
+        const data =
+            await api("/api/me");
+
+        if (
+            data.success &&
+            data.user
+        ) {
+
+            window.location.href =
+                "/dashboard.html";
+
+            return;
+        }
+
+    } catch {
+        /*
+         * Not logged in.
+         * Continue showing login page.
+         */
+    }
+}
+
+/* =========================================================
+   REGISTER PAGE
+   ========================================================= */
+
+async function registerPage() {
+
+    try {
+
+        const data =
+            await api("/api/me");
+
+        if (
+            data.success &&
+            data.user
+        ) {
+
+            window.location.href =
+                "/dashboard.html";
+
+            return;
+        }
+
+    } catch {
+        /*
+         * Not logged in.
+         */
+    }
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
 
 document.addEventListener(
     "DOMContentLoaded",
     async () => {
 
+        setupLogout();
+        setupGetKey();
+        setupCopyKey();
+
         const page =
             document.body.dataset.page;
 
+        switch (page) {
 
-        console.log(
-            "BILSX page:",
-            page
-        );
+            case "dashboard":
 
+                await dashboard();
 
-        /*
-         * Logout tersedia di semua
-         * halaman yang memuat app.js.
-         */
+                startKeyTimer();
 
-        setupLogout();
+                break;
 
+            case "login":
 
-        /* =================================================
-           LOGIN PAGE
-           ================================================= */
+                await loginPage();
 
-        if (
-            page === "login"
-        ) {
+                break;
 
-            /*
-             * Kalau session masih valid,
-             * jangan tampilkan login.
-             */
+            case "register":
 
-            const alreadyLoggedIn =
-                await checkLoginSession();
+                await registerPage();
 
+                break;
 
-            if (
-                alreadyLoggedIn
-            ) {
-                return;
-            }
+            default:
 
-
-            /*
-             * Tidak ada session.
-             * Tampilkan / aktifkan login.
-             */
-
-            setupLogin();
-
-            return;
+                break;
         }
-
-
-        /* =================================================
-           REGISTER PAGE
-           ================================================= */
-
-        if (
-            page === "register"
-        ) {
-
-            /*
-             * Kalau sudah login,
-             * tidak perlu register lagi.
-             */
-
-            const user =
-                await getCurrentUser();
-
-
-            if (user) {
-
-                redirectUser(
-                    user
-                );
-
-                return;
-            }
-
-
-            setupRegister();
-
-            return;
-        }
-
-
-        /* =================================================
-           USER DASHBOARD
-           ================================================= */
-
-        if (
-            page === "dashboard"
-        ) {
-
-            await loadDashboard();
-
-            setupGetKey();
-
-            setupCopyKey();
-
-            return;
-        }
-
-
-        /*
-         * ADMIN PAGE TIDAK DIHANDLE DI SINI.
-         *
-         * admin.html menggunakan admin.js.
-         */
-
     }
 );
