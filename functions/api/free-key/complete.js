@@ -447,4 +447,3 @@ function escapeHtml(value) {
             return entities[character];
         }
     );
-}
