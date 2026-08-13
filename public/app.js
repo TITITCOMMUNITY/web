@@ -5,7 +5,145 @@
 const $ = (selector) =>
     document.querySelector(selector);
 
+/* =========================================================
+   LOGIN FORM
+   ========================================================= */
 
+function setupLogin() {
+
+    const form =
+        document.querySelector(
+            "form[data-demo-login]"
+        );
+
+    if (!form) {
+        return;
+    }
+
+
+    form.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+
+            const inputs =
+                form.querySelectorAll(
+                    "input"
+                );
+
+
+            const login =
+                inputs[0]?.value.trim();
+
+
+            const password =
+                inputs[1]?.value || "";
+
+
+            const message =
+                document.querySelector(
+                    "#demo-message"
+                );
+
+
+            const button =
+                form.querySelector(
+                    'button[type="submit"]'
+                );
+
+
+            if (!login || !password) {
+                return;
+            }
+
+
+            if (button) {
+                button.disabled = true;
+                button.textContent =
+                    "Logging in...";
+            }
+
+
+            if (message) {
+                message.style.display =
+                    "none";
+                message.textContent =
+                    "";
+            }
+
+
+            try {
+
+                const data =
+                    await api(
+                        "/api/login",
+                        {
+                            method: "POST",
+
+                            body:
+                                JSON.stringify({
+                                    login,
+                                    password
+                                })
+                        }
+                    );
+
+
+                if (
+                    !data.success
+                ) {
+                    throw new Error(
+                        data.error ||
+                        "Login failed"
+                    );
+                }
+
+
+                /*
+                 * Login berhasil.
+                 *
+                 * login.js sudah membuat
+                 * cookie bilsx_session.
+                 */
+
+                window.location.href =
+                    "/dashboard.html";
+
+
+            } catch (error) {
+
+                console.error(
+                    "Login error:",
+                    error
+                );
+
+
+                if (message) {
+
+                    message.style.display =
+                        "block";
+
+                    message.textContent =
+                        error.message ||
+                        "Invalid credentials";
+                }
+
+
+                if (button) {
+
+                    button.disabled =
+                        false;
+
+                    button.textContent =
+                        "Login";
+                }
+            }
+
+        }
+    );
+}
 /* =========================================================
    API
    ========================================================= */
