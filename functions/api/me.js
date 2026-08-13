@@ -1,31 +1,18 @@
 export async function onRequestGet({ request, env }) {
-
   try {
-
-    const token =
-      getCookie(
-        request.headers.get("Cookie"),
-        "bilsx_session"
-      );
+    const token = getCookie(
+      request.headers.get("Cookie"),
+      "bilsx_session"
+    );
 
     if (!token) {
-
       return json({
         success: false,
         error: "Unauthorized"
       }, 401);
     }
 
-    // =====================================
-    // HASH SESSION TOKEN
-    // =====================================
-
-    const tokenHash =
-      await sha256(token);
-
-    // =====================================
-    // FIND SESSION + USER
-    // =====================================
+    const tokenHash = await sha256(token);
 
     const result = await env.DB
       .prepare(`
@@ -38,6 +25,8 @@ export async function onRequestGet({ request, env }) {
           u.email,
           u.role,
           u.status,
+          u.plan,
+          u.premium_expires_at,
           u.created_at,
           u.last_login_at
 
@@ -60,15 +49,20 @@ export async function onRequestGet({ request, env }) {
       .first();
 
     if (!result) {
-
       return json({
         success: false,
         error: "Session expired or invalid"
       }, 401);
     }
 
-    return json({
+    const premium =
+      result.plan === "premium" &&
+      (
+        result.premium_expires_at === null ||
+        Number(result.premium_expires_at) > Date.now()
+      );
 
+    return json({
       success: true,
 
       user: {
@@ -77,15 +71,23 @@ export async function onRequestGet({ request, env }) {
         email: result.email,
         role: result.role,
         status: result.status,
-        created_at: result.created_at,
-        last_login_at: result.last_login_at
+
+        plan: result.plan,
+        premium: premium,
+        premium_expires_at:
+          result.premium_expires_at,
+
+        created_at:
+          result.created_at,
+
+        last_login_at:
+          result.last_login_at
       },
 
       session: {
         id: result.session_id,
         expires_at: result.expires_at
       }
-
     });
 
   } catch (error) {
@@ -110,13 +112,11 @@ function getCookie(header, name) {
     return null;
   }
 
-  const cookies =
-    header.split(";");
+  const cookies = header.split(";");
 
   for (const cookie of cookies) {
 
-    const index =
-      cookie.indexOf("=");
+    const index = cookie.indexOf("=");
 
     if (index === -1) {
       continue;
@@ -153,6 +153,10 @@ async function sha256(value) {
 }
 
 
+// =====================================
+// HEX
+// =====================================
+
 function toHex(data) {
 
   return [...new Uint8Array(data)]
@@ -164,7 +168,7 @@ function toHex(data) {
 
 
 // =====================================
-// JSON
+// JSON RESPONSE
 // =====================================
 
 function json(data, status = 200) {
