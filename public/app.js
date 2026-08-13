@@ -1,246 +1,242 @@
-/* BILSX APP - AUTH HOTFIX */
-const $ = (s, r = document) => r.querySelector(s);
-
-async function api(url, options = {}) {
+/* BILSX app.js - authentication/session frontend */
+const api = async (url, options = {}) => {
   const response = await fetch(url, {
     credentials: "include",
+    cache: "no-store",
     ...options,
     headers: {
-      ...(options.body ? {"Content-Type": "application/json"} : {}),
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {})
     }
   });
 
-  let data = {};
-  try { data = await response.json(); } catch {}
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok || data.success === false) {
-    throw new Error(data.error || `Request failed (${response.status})`);
+    throw new Error(data.error || `HTTP ${response.status}`);
   }
+
   return data;
-}
+};
 
-async function getSession() {
+const q = (selector) => document.querySelector(selector);
+
+async function logout() {
+  /*
+    IMPORTANT:
+    Do not navigate away until the logout request finishes.
+    This prevents an <a href="#"> or page navigation from interrupting
+    the request to /api/logout.
+  */
   try {
-    return await api("/api/me", { method: "GET" });
-  } catch {
-    return null;
-  }
-}
-
-/* If the user is already logged in, login/register must not be shown. */
-async function redirectIfLoggedIn() {
-  const data = await getSession();
-
-  if (data?.success && data.user) {
-    location.replace(
-      String(data.user.role).toLowerCase() === "admin"
-        ? "/admin.html"
-        : "/dashboard.html"
-    );
-    return true;
-  }
-
-  return false;
-}
-
-function showMessage(text, ok = false) {
-  const el = $("#msg") || $("#loginMessage") || $("#demo-message") || $("#registerMessage") || $("#register-message");
-  if (!el) return;
-
-  el.textContent = text || "";
-  el.style.display = text ? "block" : "none";
-  el.dataset.ok = ok ? "1" : "0";
-}
-
-function setupLogin() {
-  const form = $("#loginForm");
-  if (!form) {
-    console.error("BILSX: #loginForm not found");
-    return;
-  }
-
-  /* Prevent duplicate listeners if the script is loaded twice. */
-  if (form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const login = form.querySelector('[name="login"]')?.value.trim() || "";
-    const password = form.querySelector('[name="password"]')?.value || "";
-    const button = form.querySelector('button[type="submit"], button');
-
-    if (!login || !password) {
-      showMessage("Username/email dan password wajib diisi.");
-      return;
-    }
-
-    if (button) {
-      button.disabled = true;
-      button.dataset.oldText = button.textContent;
-      button.textContent = "Logging in...";
-    }
-
-    try {
-      const data = await api("/api/login", {
-        method: "POST",
-        body: JSON.stringify({ login, password })
-      });
-
-      if (!data.user) {
-        throw new Error("Login berhasil tetapi data user tidak diterima.");
-      }
-
-      /*
-       * Cookie bilsx_session is created by the server.
-       * Nothing sensitive is stored in localStorage.
-       */
-      location.replace(
-        String(data.user.role).toLowerCase() === "admin"
-          ? "/admin.html"
-          : "/dashboard.html"
-      );
-    } catch (error) {
-      console.error("BILSX login:", error);
-      showMessage(error.message || "Login gagal.");
-
-      if (button) {
-        button.disabled = false;
-        button.textContent = button.dataset.oldText || "Login";
-      }
-    }
-  });
-}
-
-function setupRegister() {
-  const form = $("#registerForm");
-  if (!form || form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const username = form.querySelector('[name="username"]')?.value.trim() || "";
-    const email = form.querySelector('[name="email"]')?.value.trim() || "";
-    const password = form.querySelector('[name="password"]')?.value || "";
-    const confirm = form.querySelector('[name="confirm_password"]')?.value;
-    const button = form.querySelector('button[type="submit"], button');
-
-    if (!username || !email || !password) {
-      showMessage("Semua field wajib diisi.");
-      return;
-    }
-
-    if (confirm !== undefined && confirm !== password) {
-      showMessage("Konfirmasi password tidak sama.");
-      return;
-    }
-
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Creating...";
-    }
-
-    try {
-      await api("/api/register", {
-        method: "POST",
-        body: JSON.stringify({ username, email, password })
-      });
-
-      showMessage("Account berhasil dibuat. Mengarahkan ke login...", true);
-      setTimeout(() => location.replace("/login.html"), 700);
-    } catch (error) {
-      showMessage(error.message || "Register gagal.");
-      if (button) {
-        button.disabled = false;
-        button.textContent = "Create Account";
-      }
-    }
-  });
-}
-
-async function requireUser() {
-  const data = await getSession();
-
-  if (!data?.success || !data.user) {
-    location.replace("/login.html");
-    return null;
-  }
-
-  return data.user;
-}
-
-async function setupDashboard() {
-  const user = await requireUser();
-  if (!user) return;
-
-  document.querySelectorAll("[data-user]").forEach(el => {
-    el.textContent = user[el.dataset.user] ?? "—";
-  });
-
-  const username = $("#username");
-  if (username) username.textContent = user.username;
-
-  const status = $("#status");
-  if (status) status.textContent = user.status;
-
-  const role = $("#role");
-  if (role) role.textContent = String(user.role || "user").toUpperCase();
-
-  const plan = $("#plan");
-  if (plan) {
-    plan.textContent =
-      String(user.role).toLowerCase() === "admin"
-        ? "ADMIN"
-        : user.premium
-          ? "PREMIUM"
-          : "FREE";
+    await api("/api/logout", {
+      method: "POST",
+      cache: "no-store"
+    });
+  } catch (error) {
+    console.error("Logout API error:", error);
+  } finally {
+    /*
+      /api/logout deletes the server-side session and expires the
+      HttpOnly cookie. Redirect even if the API reports an error,
+      so the user cannot remain on the protected page.
+    */
+    window.location.replace("/login.html?logged_out=1");
   }
 }
 
 function setupLogout() {
-  document.querySelectorAll("[data-logout], #logoutBtn").forEach(button => {
-    if (button.dataset.bound === "1") return;
-    button.dataset.bound = "1";
-
-    button.addEventListener("click", async (event) => {
+  document.querySelectorAll("[data-logout], #logoutBtn").forEach((button) => {
+    button.addEventListener("click", (event) => {
       event.preventDefault();
+      event.stopPropagation();
 
-      try {
-        await api("/api/logout", { method: "POST" });
-      } catch {}
+      if (button.dataset.loggingOut === "1") return;
+      button.dataset.loggingOut = "1";
+      button.disabled = true;
 
-      location.replace("/login.html");
+      logout();
     });
   });
+}
+
+async function requireAuth(role = null) {
+  try {
+    const data = await api("/api/me", { cache: "no-store" });
+
+    if (!data.user) {
+      window.location.replace("/login.html");
+      return null;
+    }
+
+    if (role && String(data.user.role).toLowerCase() !== role) {
+      window.location.replace("/dashboard.html");
+      return null;
+    }
+
+    return data.user;
+  } catch {
+    window.location.replace("/login.html");
+    return null;
+  }
+}
+
+function showMessage(text) {
+  const element = q("#msg") || q("#loginMessage") || q("#registerMessage");
+  if (!element) return;
+  element.style.display = "block";
+  element.textContent = text;
+}
+
+async function checkExistingSession() {
+  try {
+    const data = await api("/api/me", { cache: "no-store" });
+
+    if (data.user) {
+      window.location.replace(
+        String(data.user.role).toLowerCase() === "admin"
+          ? "/admin.html"
+          : "/dashboard.html"
+      );
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+async function setupLogin() {
+  const form = q("#loginForm");
+  if (!form) return;
+
+  if (await checkExistingSession()) return;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+
+    try {
+      const payload = Object.fromEntries(new FormData(form));
+
+      const data = await api("/api/login", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      window.location.replace(
+        String(data.user?.role).toLowerCase() === "admin"
+          ? "/admin.html"
+          : "/dashboard.html"
+      );
+    } catch (error) {
+      showMessage(error.message);
+      if (button) button.disabled = false;
+    }
+  });
+}
+
+async function setupRegister() {
+  const form = q("#registerForm");
+  if (!form) return;
+
+  if (await checkExistingSession()) return;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+
+    try {
+      const payload = Object.fromEntries(new FormData(form));
+      const data = await api("/api/register", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      showMessage(data.message || "Registration successful.");
+      form.reset();
+
+      setTimeout(() => {
+        window.location.replace("/login.html");
+      }, 700);
+    } catch (error) {
+      showMessage(error.message);
+      if (button) button.disabled = false;
+    }
+  });
+}
+
+async function dashboard() {
+  const user = await requireAuth();
+  if (!user) return;
+
+  const name = q("#name");
+  if (name) name.textContent = user.username;
+
+  try {
+    const data = await api("/api/keys", { cache: "no-store" });
+
+    if (q("#active")) q("#active").textContent = data.summary?.active ?? 0;
+    if (q("#expired")) q("#expired").textContent = data.summary?.expired ?? 0;
+    if (q("#total")) q("#total").textContent = data.summary?.total ?? 0;
+
+    renderKeys((data.keys || []).slice(0, 8));
+  } catch (error) {
+    const table = q("#keys");
+    if (table) {
+      table.innerHTML =
+        `<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+}
+
+function renderKeys(keys) {
+  const table = q("#keys");
+  if (!table) return;
+
+  if (!keys.length) {
+    table.innerHTML =
+      '<tr><td colspan="3">No keys yet.</td></tr>';
+    return;
+  }
+
+  table.innerHTML = keys.map((key) => `
+    <tr>
+      <td>${escapeHtml(key.key)}</td>
+      <td>${escapeHtml(key.status)}</td>
+      <td>${key.expires_at
+        ? new Date(Number(key.expires_at)).toLocaleString()
+        : "Lifetime"}
+      </td>
+    </tr>
+  `).join("");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  }[char]));
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupLogout();
 
-  const page = document.body.dataset.page || "";
+  const page = document.body.dataset.page;
 
-  /*
-   * IMPORTANT:
-   * We identify pages by their actual element IDs too.
-   * This keeps the site working even if data-page was forgotten.
-   */
-  if (page === "login" || $("#loginForm")) {
-    if (!(await redirectIfLoggedIn())) {
-      setupLogin();
-    }
-    return;
-  }
-
-  if (page === "register" || $("#registerForm")) {
-    if (!(await redirectIfLoggedIn())) {
-      setupRegister();
-    }
-    return;
-  }
-
-  if (page === "dashboard" || $(".dash") || $("[data-page='dashboard']")) {
-    await setupDashboard();
+  if (page === "login") {
+    await setupLogin();
+  } else if (page === "register") {
+    await setupRegister();
+  } else if (page === "dashboard") {
+    await dashboard();
+  } else if (page === "admin") {
+    await requireAuth("admin");
   }
 });
