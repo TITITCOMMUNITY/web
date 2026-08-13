@@ -1,17 +1,31 @@
 export async function onRequestPost({ request, env }) {
+
   try {
-    const { login, password } = await request.json();
 
-    const identifier = (login || "").trim();
+    const body = await request.json();
 
-    if (!identifier || !password) {
-      return j({
+    const login = String(body.login || "")
+      .trim()
+      .toLowerCase();
+
+    const password = String(
+      body.password || ""
+    );
+
+    if (!login || !password) {
+
+      return json({
         success: false,
-        error: "Username/email and password are required"
+        error: "Username/email dan password wajib diisi"
       }, 400);
+
     }
 
-    const u = await env.DB
+    // =====================================
+    // FIND USER
+    // =====================================
+
+    const user = await env.DB
       .prepare(`
         SELECT
           id,
@@ -22,51 +36,77 @@ export async function onRequestPost({ request, env }) {
           role,
           status
         FROM users
-        WHERE username = ?1 COLLATE NOCASE
-           OR email = ?1 COLLATE NOCASE
+        WHERE username = ?1
+           OR email = ?1
         LIMIT 1
       `)
-      .bind(identifier)
+      .bind(login)
       .first();
 
-    if (!u || u.status !== "active") {
-      return j({
+    if (!user || user.status !== "active") {
+
+      return json({
         success: false,
         error: "Invalid credentials"
       }, 401);
     }
 
-    const hash = await ph(password, u.password_salt);
+    // =====================================
+    // VERIFY PASSWORD
+    // =====================================
 
-    if (hash !== u.password_hash) {
-      return j({
+    const hash = await hashPassword(
+      password,
+      user.password_salt
+    );
+
+    if (hash !== user.password_hash) {
+
+      return json({
         success: false,
         error: "Invalid credentials"
       }, 401);
     }
 
-    const token =
+    // =====================================
+    // CREATE SESSION
+    // =====================================
+
+    const sessionToken =
       crypto.randomUUID() +
       "." +
       crypto.randomUUID();
 
-    const tokenHash = await sha(token);
+    const tokenHash =
+      await sha256(sessionToken);
+
     const now = Date.now();
-    const expires = now + 604800000;
+
+    // 7 DAYS
+    const expiresAt =
+      now + (7 * 24 * 60 * 60 * 1000);
 
     await env.DB
       .prepare(`
-        INSERT INTO sessions
-        (user_id, token_hash, expires_at, created_at)
+        INSERT INTO sessions (
+          user_id,
+          token_hash,
+          expires_at,
+          created_at
+        )
         VALUES (?1, ?2, ?3, ?4)
       `)
       .bind(
-        u.id,
+        user.id,
         tokenHash,
-        expires,
+        expiresAt,
         now
       )
       .run();
+
+    // =====================================
+    // UPDATE LAST LOGIN
+    // =====================================
 
     await env.DB
       .prepare(`
@@ -74,24 +114,32 @@ export async function onRequestPost({ request, env }) {
         SET last_login_at = ?1
         WHERE id = ?2
       `)
-      .bind(now, u.id)
+      .bind(
+        now,
+        user.id
+      )
       .run();
+
+    // =====================================
+    // RESPONSE
+    // =====================================
 
     return new Response(
       JSON.stringify({
         success: true,
         user: {
-          id: u.id,
-          username: u.username,
-          email: u.email,
-          role: u.role
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role
         }
       }),
       {
         headers: {
           "Content-Type": "application/json",
+
           "Set-Cookie":
-            `bilsx_session=${token}; ` +
+            `bilsx_session=${sessionToken}; ` +
             `Path=/; ` +
             `HttpOnly; ` +
             `Secure; ` +
@@ -101,70 +149,84 @@ export async function onRequestPost({ request, env }) {
       }
     );
 
-  } catch (e) {
-    return j({
+  } catch (error) {
+
+    console.error(error);
+
+    return json({
       success: false,
-      error: String(e)
+      error: String(error)
     }, 500);
   }
 }
 
 
-async function ph(password, salt) {
+// =====================================
+// PASSWORD HASH
+// =====================================
 
-  let d = await crypto.subtle.digest(
+async function hashPassword(password, salt) {
+
+  let digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(
       salt + password
     )
   );
 
-  const sb = new TextEncoder().encode(salt);
+  const saltBytes =
+    new TextEncoder().encode(salt);
 
   for (let i = 0; i < 100000; i++) {
 
-    const b = new Uint8Array(
-      sb.length + d.byteLength
+    const buffer = new Uint8Array(
+      saltBytes.length + digest.byteLength
     );
 
-    b.set(sb);
-    b.set(
-      new Uint8Array(d),
-      sb.length
+    buffer.set(saltBytes);
+
+    buffer.set(
+      new Uint8Array(digest),
+      saltBytes.length
     );
 
-    d = await crypto.subtle.digest(
+    digest = await crypto.subtle.digest(
       "SHA-256",
-      b
+      buffer
     );
   }
 
-  return hex(d);
+  return toHex(digest);
 }
 
 
-async function sha(value) {
+// =====================================
+// SHA256 SESSION
+// =====================================
 
-  return hex(
+async function sha256(value) {
+
+  const digest =
     await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode(value)
-    )
-  );
+    );
+
+  return toHex(digest);
 }
 
 
-function hex(data) {
+function toHex(data) {
 
   return [...new Uint8Array(data)]
-    .map(x =>
-      x.toString(16).padStart(2, "0")
+    .map(byte =>
+      byte.toString(16).padStart(2, "0")
     )
     .join("");
 }
 
 
-function j(data, status = 200) {
+function json(data, status = 200) {
 
   return new Response(
     JSON.stringify(data),
