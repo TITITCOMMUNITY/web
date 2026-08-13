@@ -1,3 +1,197 @@
-export async function onRequestPost({request,env}){try{const {username,email,password}=await request.json();if(!/^[A-Za-z0-9_]{3,32}$/.test(username||''))return j({success:false,error:'Invalid username'},400);if(!/^.{8,128}$/.test(password||''))return j({success:false,error:'Password must be 8-128 characters'},400);const e=(email||'').toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))return j({success:false,error:'Invalid email'},400);const x=await env.DB.prepare('SELECT id FROM users WHERE username=?1 OR email=?2 LIMIT 1').bind(username,e).first();if(x)return j({success:false,error:'Username or email already exists'},409);const salt=crypto.randomUUID().replaceAll('-','');const hash=await ph(password,salt);await env.DB.prepare("INSERT INTO users(username,email,password_hash,password_salt,role,status,created_at) VALUES(?1,?2,?3,?4,'user','active',?5)").bind(username,e,hash,salt,Date.now()).run();return j({success:true,message:'Account created'})}catch(e){return j({success:false,error:String(e)},500)}}
-async function ph(p,s){let d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s+p));const sb=new TextEncoder().encode(s);for(let i=0;i<100000;i++){const b=new Uint8Array(sb.length+d.byteLength);b.set(sb);b.set(new Uint8Array(d),sb.length);d=await crypto.subtle.digest('SHA-256',b)}return hex(d)}
-function hex(d){return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}function j(x,s=200){return new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json'}})}
+export async function onRequestPost({ request, env }) {
+  try {
+    const body = await request.json();
+
+    const username = String(body.username || "")
+      .trim()
+      .toLowerCase();
+
+    const email = String(body.email || "")
+      .trim()
+      .toLowerCase();
+
+    const password = String(body.password || "");
+
+    // =========================
+    // VALIDATION
+    // =========================
+
+    if (!/^[a-z0-9_]{3,32}$/.test(username)) {
+      return json({
+        success: false,
+        error: "Username hanya boleh menggunakan a-z, 0-9 dan _"
+      }, 400);
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return json({
+        success: false,
+        error: "Invalid email"
+      }, 400);
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      return json({
+        success: false,
+        error: "Password harus 8-128 karakter"
+      }, 400);
+    }
+
+    // =========================
+    // CHECK DUPLICATE
+    // =========================
+
+    const existing = await env.DB
+      .prepare(`
+        SELECT id
+        FROM users
+        WHERE username = ?1
+           OR email = ?2
+        LIMIT 1
+      `)
+      .bind(username, email)
+      .first();
+
+    if (existing) {
+      return json({
+        success: false,
+        error: "Username atau email sudah digunakan"
+      }, 409);
+    }
+
+    // =========================
+    // PASSWORD HASH
+    // =========================
+
+    const salt = crypto
+      .randomUUID()
+      .replaceAll("-", "");
+
+    const passwordHash = await hashPassword(
+      password,
+      salt
+    );
+
+    // =========================
+    // CREATE USER
+    // =========================
+
+    const now = Date.now();
+
+    const result = await env.DB
+      .prepare(`
+        INSERT INTO users (
+          username,
+          email,
+          password_hash,
+          password_salt,
+          role,
+          status,
+          created_at
+        )
+        VALUES (
+          ?1,
+          ?2,
+          ?3,
+          ?4,
+          'user',
+          'active',
+          ?5
+        )
+      `)
+      .bind(
+        username,
+        email,
+        passwordHash,
+        salt,
+        now
+      )
+      .run();
+
+    return json({
+      success: true,
+      message: "Account created",
+      user: {
+        id: result.meta?.last_row_id ?? null,
+        username,
+        email
+      }
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return json({
+      success: false,
+      error: String(error)
+    }, 500);
+  }
+}
+
+
+// =====================================
+// PASSWORD HASH
+// =====================================
+
+async function hashPassword(password, salt) {
+
+  let digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(
+      salt + password
+    )
+  );
+
+  const saltBytes =
+    new TextEncoder().encode(salt);
+
+  for (let i = 0; i < 100000; i++) {
+
+    const buffer = new Uint8Array(
+      saltBytes.length + digest.byteLength
+    );
+
+    buffer.set(saltBytes);
+
+    buffer.set(
+      new Uint8Array(digest),
+      saltBytes.length
+    );
+
+    digest = await crypto.subtle.digest(
+      "SHA-256",
+      buffer
+    );
+  }
+
+  return toHex(digest);
+}
+
+
+// =====================================
+// HELPERS
+// =====================================
+
+function toHex(data) {
+
+  return [...new Uint8Array(data)]
+    .map(byte =>
+      byte.toString(16).padStart(2, "0")
+    )
+    .join("");
+}
+
+
+function json(data, status = 200) {
+
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
