@@ -1,8 +1,5 @@
-name = "bilsx-web"
+name = "bilsx"
 compatibility_date = "2026-08-13"
-pages_build_output_dir = "public"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "bilsx"
-database_id = "04069ce1-0a4c-4aaa-a70c-edb904bb5731"
+[vars]
+APP_NAME = "BILSX"
