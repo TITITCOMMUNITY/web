@@ -467,56 +467,7 @@ async function verifyLinkvertise(hash, env) {
      */
 
     return text === "TRUE";
-}
-
-    /*
-     * Dokumentasi/API response dapat
-     * berubah format, jadi jangan
-     * langsung menganggap HTTP 200
-     * sebagai valid.
-     */
-
-    try {
-
-        const data =
-            JSON.parse(
-                text
-            );
-
-
-        if (
-            data === true
-        ) {
-
-            return true;
-        }
-
-
-        if (
-            data.success === true
-            ||
-            data.valid === true
-            ||
-            data.verified === true
-        ) {
-
-            return true;
-        }
-
-
-        return false;
-
-    } catch {
-
-        /*
-         * Response bukan JSON.
-         * Jangan memberikan reward.
-         */
-
-        return false;
-    }
-}
-
+} 
 
 /* =========================================================
    PREMIUM
