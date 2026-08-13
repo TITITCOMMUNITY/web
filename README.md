@@ -1,4 +1,4 @@
-# BILSX v2 — Pages + Functions + D1
+# BILSX Website
 
 ## Pages
 index, features, tools, pricing, documentation, status, login, register, dashboard, keys, admin, admin-users, admin-keys, admin-logs.
