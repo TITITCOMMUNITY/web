@@ -1,1 +1,1371 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BILSX Dashboard</title><link rel="stylesheet" href="/style.css"></head><body data-page="dashboard"><main><header><h1>Dashboard</h1><button id="logoutBtn">Logout</button></header><section class="card"><p>Username: <b data-user="username">—</b></p><p>Status: <b data-user="status">—</b></p><p>Role: <b data-user="role">—</b></p><p>Plan: <b id="plan">—</b></p></section><section id="freeKeyPanel" class="card"><h2>Free Key</h2><div id="noKey"><button id="startGetKeyBtn">Get Key</button><p id="getKeyMessage"></p></div><div id="keyBox" hidden><p>Key: <b id="licenseKey">—</b></p><p>Status: <b id="keyStatus">—</b></p><p>Expires: <b id="keyExpiry">—</b></p></div><p id="freeKeyMessage"></p></section></main><script src="/app.js" defer></script></body></html>
+<!doctype html>
+
+<html lang="id">
+
+<head>
+
+<meta charset="utf-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+>
+
+<meta
+    name="theme-color"
+    content="#08090d"
+>
+
+<title>BILSX — Dashboard</title>
+
+<style>
+
+:root {
+    --bg: #07080c;
+    --panel: #101219;
+    --panel-2: #151821;
+    --border: rgba(255,255,255,.08);
+
+    --text: #f5f7fb;
+    --muted: #8d93a3;
+
+    --primary: #735cff;
+    --primary-2: #4c8dff;
+
+    --success: #35d49a;
+    --danger: #ff6175;
+
+    --radius: 20px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    color-scheme: dark;
+}
+
+body {
+    margin: 0;
+
+    min-height: 100vh;
+
+    background:
+        radial-gradient(
+            circle at 15% 0%,
+            rgba(115,92,255,.18),
+            transparent 32%
+        ),
+        radial-gradient(
+            circle at 90% 10%,
+            rgba(76,141,255,.10),
+            transparent 28%
+        ),
+        var(--bg);
+
+    color: var(--text);
+
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color:
+        transparent;
+}
+
+button {
+    font: inherit;
+}
+
+.app {
+    width: min(
+        1180px,
+        calc(100% - 32px)
+    );
+
+    margin: 0 auto;
+
+    padding:
+        24px 0 48px;
+}
+
+
+/* =========================================================
+   TOPBAR
+   ========================================================= */
+
+.topbar {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 16px;
+
+    margin-bottom: 28px;
+}
+
+.brand {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+}
+
+.brand-mark {
+    width: 42px;
+    height: 42px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 13px;
+
+    background:
+        linear-gradient(
+            135deg,
+            var(--primary),
+            var(--primary-2)
+        );
+
+    box-shadow:
+        0 10px 30px
+        rgba(
+            115,
+            92,
+            255,
+            .25
+        );
+
+    font-weight: 900;
+    letter-spacing: -.5px;
+}
+
+.brand-name {
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.brand-sub {
+    margin-top: 2px;
+
+    color: var(--muted);
+
+    font-size: 12px;
+}
+
+.logout {
+    border:
+        1px solid
+        var(--border);
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .035
+        );
+
+    color: var(--muted);
+
+    padding:
+        10px 15px;
+
+    border-radius: 11px;
+
+    cursor: pointer;
+
+    transition:
+        .2s ease;
+}
+
+.logout:hover {
+    color: var(--text);
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .07
+        );
+}
+
+
+/* =========================================================
+   HERO
+   ========================================================= */
+
+.hero {
+    display: flex;
+
+    align-items: flex-end;
+    justify-content: space-between;
+
+    gap: 24px;
+
+    margin-bottom: 24px;
+}
+
+.hero h1 {
+    margin: 0;
+
+    font-size:
+        clamp(
+            27px,
+            5vw,
+            42px
+        );
+
+    letter-spacing: -.8px;
+}
+
+.hero p {
+    margin:
+        8px 0 0;
+
+    color: var(--muted);
+
+    font-size: 14px;
+}
+
+.user-chip {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    padding:
+        8px 12px 8px 8px;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 14px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .035
+        );
+}
+
+.avatar {
+    width: 34px;
+    height: 34px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #735cff,
+            #4c8dff
+        );
+
+    font-weight: 800;
+}
+
+.user-chip strong {
+    display: block;
+
+    font-size: 13px;
+}
+
+.user-chip span {
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   GRID
+   ========================================================= */
+
+.grid {
+    display: grid;
+
+    grid-template-columns:
+        1.5fr
+        1fr;
+
+    gap: 18px;
+}
+
+.card {
+    border:
+        1px solid
+        var(--border);
+
+    border-radius:
+        var(--radius);
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(
+                255,
+                255,
+                255,
+                .045
+            ),
+            rgba(
+                255,
+                255,
+                255,
+                .018
+            )
+        );
+
+    box-shadow:
+        0 20px 60px
+        rgba(
+            0,
+            0,
+            0,
+            .20
+        );
+
+    overflow: hidden;
+}
+
+.card-inner {
+    padding: 22px;
+}
+
+.card-header {
+    display: flex;
+
+    align-items: flex-start;
+    justify-content: space-between;
+
+    gap: 15px;
+
+    margin-bottom: 22px;
+}
+
+.card-title {
+    margin: 0;
+
+    font-size: 16px;
+    font-weight: 750;
+}
+
+.card-description {
+    margin:
+        6px 0 0;
+
+    color: var(--muted);
+
+    font-size: 12px;
+
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   FREE KEY
+   ========================================================= */
+
+.free-key-card {
+    position: relative;
+
+    background:
+        radial-gradient(
+            circle at 100% 0%,
+            rgba(
+                115,
+                92,
+                255,
+                .20
+            ),
+            transparent 42%
+        ),
+        var(--panel);
+}
+
+.free-key-icon {
+    width: 42px;
+    height: 42px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 13px;
+
+    background:
+        rgba(
+            115,
+            92,
+            255,
+            .13
+        );
+
+    color:
+        #a99cff;
+
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.free-key-time {
+    display: flex;
+
+    align-items: baseline;
+
+    gap: 7px;
+
+    margin:
+        12px 0 18px;
+}
+
+.free-key-time strong {
+    font-size: 32px;
+
+    letter-spacing:
+        -.8px;
+}
+
+.free-key-time span {
+    color: var(--muted);
+
+    font-size: 13px;
+}
+
+.progress {
+    height: 8px;
+
+    overflow: hidden;
+
+    border-radius: 999px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .07
+        );
+}
+
+.progress-bar {
+    width: 0;
+    height: 100%;
+
+    border-radius: inherit;
+
+    background:
+        linear-gradient(
+            90deg,
+            var(--primary),
+            var(--primary-2)
+        );
+
+    transition:
+        width .35s ease;
+}
+
+.progress-info {
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    margin-top: 8px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+.key-action {
+    width: 100%;
+
+    margin-top: 20px;
+
+    padding:
+        13px 16px;
+
+    border: 0;
+
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            135deg,
+            var(--primary),
+            var(--primary-2)
+        );
+
+    color: #fff;
+
+    font-weight: 750;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 10px 30px
+        rgba(
+            76,
+            141,
+            255,
+            .18
+        );
+
+    transition:
+        transform .15s ease,
+        opacity .15s ease;
+}
+
+.key-action:hover {
+    transform:
+        translateY(-1px);
+}
+
+.key-action:disabled {
+    opacity: .45;
+
+    cursor:
+        not-allowed;
+
+    transform:
+        none;
+}
+
+.expiry {
+    margin-top: 14px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+
+    text-align: center;
+}
+
+.message {
+    margin-top: 12px;
+
+    padding:
+        10px 12px;
+
+    border-radius: 10px;
+
+    font-size: 12px;
+
+    line-height: 1.45;
+}
+
+.message.success {
+    color: #a7f3d0;
+
+    background:
+        rgba(
+            53,
+            212,
+            154,
+            .08
+        );
+
+    border:
+        1px solid
+        rgba(
+            53,
+            212,
+            154,
+            .14
+        );
+}
+
+.message.error {
+    color: #ffabb6;
+
+    background:
+        rgba(
+            255,
+            97,
+            117,
+            .08
+        );
+
+    border:
+        1px solid
+        rgba(
+            255,
+            97,
+            117,
+            .14
+        );
+}
+
+
+/* =========================================================
+   ACCOUNT
+   ========================================================= */
+
+.account-list {
+    display: grid;
+
+    gap: 10px;
+}
+
+.account-item {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding:
+        13px 14px;
+
+    border:
+        1px solid
+        rgba(
+            255,
+            255,
+            255,
+            .055
+        );
+
+    border-radius: 13px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .025
+        );
+}
+
+.account-item span {
+    color: var(--muted);
+
+    font-size: 12px;
+}
+
+.account-item strong {
+    font-size: 12px;
+
+    text-transform:
+        capitalize;
+}
+
+.status {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 6px;
+}
+
+.status::before {
+    content: "";
+
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+
+    background:
+        var(--success);
+
+    box-shadow:
+        0 0 10px
+        rgba(
+            53,
+            212,
+            154,
+            .7
+        );
+}
+
+
+/* =========================================================
+   LICENSE
+   ========================================================= */
+
+.license-card {
+    grid-column:
+        1 / -1;
+}
+
+.key-list {
+    display: grid;
+
+    gap: 10px;
+}
+
+.key-row {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding:
+        14px;
+
+    border:
+        1px solid
+        rgba(
+            255,
+            255,
+            255,
+            .055
+        );
+
+    border-radius: 14px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .025
+        );
+}
+
+.key-value {
+    overflow: hidden;
+
+    color: #dfe3ed;
+
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace;
+
+    font-size: 12px;
+
+    text-overflow:
+        ellipsis;
+
+    white-space:
+        nowrap;
+}
+
+.key-meta {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin-top: 7px;
+
+    color: var(--muted);
+
+    font-size: 10px;
+}
+
+.status-dot {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 5px;
+
+    text-transform:
+        capitalize;
+}
+
+.status-dot::before {
+    content: "";
+
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+
+    background:
+        var(--muted);
+}
+
+.status-dot.active {
+    color:
+        var(--success);
+}
+
+.status-dot.active::before {
+    background:
+        var(--success);
+}
+
+.status-dot.expired {
+    color:
+        var(--danger);
+}
+
+.status-dot.expired::before {
+    background:
+        var(--danger);
+}
+
+.copy-key {
+    flex: 0 0 auto;
+
+    padding:
+        9px 13px;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 9px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .045
+        );
+
+    color:
+        var(--text);
+
+    cursor:
+        pointer;
+
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.copy-key:hover {
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .08
+        );
+}
+
+
+/* =========================================================
+   EMPTY
+   ========================================================= */
+
+.empty-state {
+    display: grid;
+
+    justify-items: center;
+
+    gap: 7px;
+
+    padding:
+        34px 15px;
+
+    color: var(--muted);
+
+    text-align: center;
+}
+
+.empty-state strong {
+    color:
+        var(--text);
+
+    font-size: 13px;
+}
+
+.empty-state span {
+    font-size: 11px;
+}
+
+.empty-icon {
+    width: 40px;
+    height: 40px;
+
+    display: grid;
+    place-items: center;
+
+    margin-bottom: 4px;
+
+    border-radius: 12px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .05
+        );
+
+    font-size: 10px;
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.footer {
+    margin-top: 25px;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .28
+        );
+
+    font-size: 10px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (
+    max-width: 780px
+) {
+
+    .app {
+        width:
+            min(
+                100% - 20px,
+                600px
+            );
+
+        padding-top:
+            14px;
+    }
+
+    .topbar {
+        margin-bottom:
+            22px;
+    }
+
+    .hero {
+        display: grid;
+
+        align-items:
+            stretch;
+    }
+
+    .grid {
+        grid-template-columns:
+            1fr;
+    }
+
+    .license-card {
+        grid-column:
+            auto;
+    }
+
+    .user-chip {
+        width:
+            fit-content;
+    }
+
+    .key-row {
+        align-items:
+            flex-start;
+    }
+
+    .copy-key {
+        margin-top: 2px;
+    }
+}
+
+</style>
+
+</head>
+
+
+<body data-page="dashboard">
+
+<div class="app">
+
+
+    <!-- =================================================
+         TOPBAR
+    ================================================= -->
+
+    <header class="topbar">
+
+        <div class="brand">
+
+            <div class="brand-mark">
+                B
+            </div>
+
+            <div>
+
+                <div class="brand-name">
+                    BILSX
+                </div>
+
+                <div class="brand-sub">
+                    Control Center
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <button
+            id="logoutBtn"
+            class="logout"
+            type="button"
+        >
+            Logout
+        </button>
+
+    </header>
+
+
+    <!-- =================================================
+         HERO
+    ================================================= -->
+
+    <section class="hero">
+
+        <div>
+
+            <h1>
+                Welcome back,
+                <span id="name">
+                    User
+                </span>
+            </h1>
+
+            <p>
+                Kelola akun dan akses script kamu dari satu tempat.
+            </p>
+
+        </div>
+
+
+        <div class="user-chip">
+
+            <div
+                class="avatar"
+                id="avatarLetter"
+            >
+                U
+            </div>
+
+            <div>
+
+                <strong
+                    data-user="username"
+                >
+                    User
+                </strong>
+
+                <span>
+                    <span
+                        data-user-status
+                        class="status"
+                    >
+                        active
+                    </span>
+                </span>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         MAIN GRID
+    ================================================= -->
+
+    <main class="grid">
+
+
+        <!-- =============================================
+             FREE KEY
+        ============================================== -->
+
+        <section
+            class="card free-key-card"
+            id="freeKeyPanel"
+        >
+
+            <div class="card-inner">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h2
+                            class="card-title"
+                            id="freeKeyTitle"
+                        >
+                            Get Free Key
+                        </h2>
+
+                        <p
+                            class="card-description"
+                            id="freeKeyDescription"
+                        >
+                            Selesaikan Linkvertise untuk mendapatkan 6 jam akses.
+                        </p>
+
+                    </div>
+
+
+                    <div class="free-key-icon">
+                        FREE
+                    </div>
+
+                </div>
+
+
+                <div class="free-key-time">
+
+                    <strong>
+                        72
+                    </strong>
+
+                    <span>
+                        hour cap
+                    </span>
+
+                </div>
+
+
+                <div class="progress">
+
+                    <div
+                        class="progress-bar"
+                        id="freeKeyProgress"
+                    ></div>
+
+                </div>
+
+
+                <div class="progress-info">
+
+                    <span>
+                        Free access
+                    </span>
+
+                    <span
+                        id="freeKeyProgressText"
+                    >
+                        0 / 72 jam
+                    </span>
+
+                </div>
+
+
+                <div
+                    class="expiry"
+                    id="freeKeyExpiry"
+                >
+                    Belum memiliki waktu aktif
+                </div>
+
+
+                <button
+                    id="freeKeyAction"
+                    class="key-action"
+                    type="button"
+                >
+                    Get Key
+                </button>
+
+
+                <div
+                    id="freeKeyLink"
+                    hidden
+                ></div>
+
+
+                <div
+                    id="freeKeyMessage"
+                    class="message"
+                    hidden
+                ></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =============================================
+             ACCOUNT
+        ============================================== -->
+
+        <section class="card">
+
+            <div class="card-inner">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h2 class="card-title">
+                            Account
+                        </h2>
+
+                        <p class="card-description">
+                            Informasi akun kamu.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="account-list">
+
+                    <div class="account-item">
+
+                        <span>
+                            Username
+                        </span>
+
+                        <strong
+                            data-user="username"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+
+                    <div class="account-item">
+
+                        <span>
+                            Status
+                        </span>
+
+                        <strong
+                            data-user-status
+                            class="status"
+                        >
+                            active
+                        </strong>
+
+                    </div>
+
+
+                    <div class="account-item">
+
+                        <span>
+                            Plan
+                        </span>
+
+                        <strong
+                            id="plan"
+                        >
+                            Free
+                        </strong>
+
+                    </div>
+
+
+                    <div class="account-item">
+
+                        <span>
+                            Role
+                        </span>
+
+                        <strong
+                            data-user-role
+                        >
+                            user
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =============================================
+             LICENSE KEYS
+        ============================================== -->
+
+        <section class="card license-card">
+
+            <div class="card-inner">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h2 class="card-title">
+                            License Keys
+                        </h2>
+
+                        <p class="card-description">
+                            Semua license key yang terhubung dengan akun ini.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="licenseKeyList"
+                    class="key-list"
+                >
+
+                    <div class="empty-state">
+                        Loading...
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer class="footer">
+        BILSX Control Center
+    </footer>
+
+</div>
+
+
+<script src="/app.js"></script>
+
+</body>
+
+</html>
