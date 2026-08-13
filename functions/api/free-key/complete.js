@@ -411,14 +411,9 @@ export async function onRequestGet({
    LINKVERTISE VERIFICATION
 ========================================================= */
 
-async function verifyLinkvertise(
-    hash,
-    env
-) {
+async function verifyLinkvertise(hash, env) {
 
-    if (
-        !env.LINKVERTISE_TOKEN
-    ) {
+    if (!env.LINKVERTISE_TOKEN) {
 
         console.error(
             "LINKVERTISE_TOKEN belum dikonfigurasi."
@@ -427,56 +422,52 @@ async function verifyLinkvertise(
         return false;
     }
 
-
-    const endpoint =
-        new URL(
-            "https://publisher.linkvertise.com/api/v1/anti_bypassing"
-        );
-
+    const endpoint = new URL(
+        "https://publisher.linkvertise.com/api/v1/anti_bypassing"
+    );
 
     endpoint.searchParams.set(
         "token",
         env.LINKVERTISE_TOKEN
     );
 
-
     endpoint.searchParams.set(
         "hash",
         hash
     );
 
-
-    const response =
-        await fetch(
-            endpoint.toString(),
-            {
-                method: "POST"
-            }
-        );
-
-
-    if (
-        !response.ok
-    ) {
-
-        console.error(
-            "Linkvertise verification HTTP:",
-            response.status
-        );
-
-        return false;
-    }
-
+    const response = await fetch(
+        endpoint.toString(),
+        {
+            method: "POST"
+        }
+    );
 
     const text =
-        await response.text();
+        (await response.text()).trim();
 
+    console.log(
+        "Linkvertise verification HTTP:",
+        response.status
+    );
 
     console.log(
         "Linkvertise verification response:",
         text
     );
 
+    if (!response.ok) {
+        return false;
+    }
+
+    /*
+     * Linkvertise mengembalikan
+     * literal TRUE / FALSE,
+     * bukan JSON.
+     */
+
+    return text === "TRUE";
+}
 
     /*
      * Dokumentasi/API response dapat
