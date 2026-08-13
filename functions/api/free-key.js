@@ -1,12 +1,17 @@
-export async function onRequestGet({ request, env }) {
+export async function onRequestGet({
+    request,
+    env
+}) {
 
     try {
 
         const user =
-            await getUser(request, env);
+            await getUser(
+                request,
+                env
+            );
 
         if (!user) {
-
             return json({
                 success: false,
                 error: "Unauthorized"
@@ -16,13 +21,11 @@ export async function onRequestGet({ request, env }) {
 
         /*
          * ADMIN
-         *
-         * Admin tidak membutuhkan Free Key.
          */
 
         if (
-            String(user.role).toLowerCase() ===
-            "admin"
+            String(user.role)
+                .toLowerCase() === "admin"
         ) {
 
             return json({
@@ -35,19 +38,18 @@ export async function onRequestGet({ request, env }) {
 
         /*
          * PREMIUM
-         *
-         * Premium juga tidak membutuhkan
-         * Free Key selama masih aktif.
          */
 
-        if (
+        const premium =
             user.plan === "premium" &&
             (
                 user.premium_expires_at === null ||
                 Number(user.premium_expires_at) >
                 Date.now()
-            )
-        ) {
+            );
+
+
+        if (premium) {
 
             return json({
                 success: true,
@@ -58,10 +60,10 @@ export async function onRequestGet({ request, env }) {
 
 
         /*
-         * CARI KEY USER
+         * CARI KEY
          */
 
-        const result =
+        const key =
             await env.DB
                 .prepare(`
                     SELECT
@@ -72,20 +74,20 @@ export async function onRequestGet({ request, env }) {
                         created_at,
                         activated_at,
                         expires_at
+
                     FROM license_keys
+
                     WHERE user_id = ?1
+
                     ORDER BY created_at DESC
+
                     LIMIT 1
                 `)
                 .bind(user.id)
                 .first();
 
 
-        /*
-         * USER BELUM MEMILIKI KEY
-         */
-
-        if (!result) {
+        if (!key) {
 
             return json({
                 success: true,
@@ -96,21 +98,17 @@ export async function onRequestGet({ request, env }) {
         }
 
 
-        /*
-         * CEK EXPIRY
-         */
-
         const now =
             Date.now();
 
         let status =
-            result.status;
+            key.status;
+
 
         if (
-            result.expires_at &&
-            Number(result.expires_at) <= now
+            key.expires_at &&
+            Number(key.expires_at) <= now
         ) {
-
             status = "expired";
         }
 
@@ -124,29 +122,28 @@ export async function onRequestGet({ request, env }) {
             has_key: true,
 
             key: {
-                id: result.id,
-                key: result.key,
+                id: key.id,
+                key: key.key,
                 duration_days:
-                    result.duration_days,
-                status: status,
+                    key.duration_days,
+                status,
                 created_at:
-                    result.created_at,
+                    key.created_at,
                 activated_at:
-                    result.activated_at,
+                    key.activated_at,
                 expires_at:
-                    result.expires_at,
+                    key.expires_at,
+
                 remaining_ms:
-                    result.expires_at
+                    key.expires_at
                         ? Math.max(
                             0,
-                            Number(
-                                result.expires_at
-                            ) - now
+                            Number(key.expires_at) -
+                            now
                         )
                         : null
             }
         });
-
 
     } catch (error) {
 
@@ -161,8 +158,8 @@ export async function onRequestGet({ request, env }) {
 
 
 /* =========================================================
-   POST /api/free-key
-   ========================================================= */
+   POST
+========================================================= */
 
 export async function onRequestPost({
     request,
@@ -172,7 +169,10 @@ export async function onRequestPost({
     try {
 
         const user =
-            await getUser(request, env);
+            await getUser(
+                request,
+                env
+            );
 
         if (!user) {
 
@@ -184,12 +184,12 @@ export async function onRequestPost({
 
 
         /*
-         * ADMIN TIDAK PERLU FREE KEY
+         * ADMIN
          */
 
         if (
-            String(user.role).toLowerCase() ===
-            "admin"
+            String(user.role)
+                .toLowerCase() === "admin"
         ) {
 
             return json({
@@ -201,17 +201,19 @@ export async function onRequestPost({
 
 
         /*
-         * PREMIUM TIDAK PERLU FREE KEY
+         * PREMIUM
          */
 
-        if (
+        const premium =
             user.plan === "premium" &&
             (
                 user.premium_expires_at === null ||
                 Number(user.premium_expires_at) >
                 Date.now()
-            )
-        ) {
+            );
+
+
+        if (premium) {
 
             return json({
                 success: false,
@@ -222,7 +224,7 @@ export async function onRequestPost({
 
 
         /*
-         * CEK APAKAH USER SUDAH MEMILIKI KEY
+         * CEK KEY USER
          */
 
         let key =
@@ -238,42 +240,41 @@ export async function onRequestPost({
 
 
         /*
-         * BELUM PUNYA KEY
-         *
-         * Buat satu key.
+         * BELUM ADA KEY
          */
 
         if (!key) {
 
-            const newKey =
-                generateKey();
-
             const now =
                 Date.now();
+
+            const newKey =
+                generateKey();
 
 
             await env.DB
                 .prepare(`
-                    INSERT INTO license_keys (
+                    INSERT INTO license_keys
+                    (
                         key,
                         user_id,
                         duration_days,
                         status,
                         created_at
                     )
-                    VALUES (
+
+                    VALUES
+                    (
                         ?1,
                         ?2,
-                        ?3,
-                        ?4,
-                        ?5
+                        0,
+                        'unused',
+                        ?3
                     )
                 `)
                 .bind(
                     newKey,
                     user.id,
-                    0,
-                    "unused",
                     now
                 )
                 .run();
@@ -293,87 +294,26 @@ export async function onRequestPost({
 
 
         /*
-         * BUAT CLAIM TOKEN
+         * Untuk sekarang POST hanya
+         * mengembalikan key.
          *
-         * Untuk sementara ini hanya
-         * testing mekanisme Free Key.
+         * Linkvertise akan dipasang
+         * setelah sistem dasar normal.
          */
-
-        const claimToken =
-            crypto.randomUUID();
-
-
-        const now =
-            Date.now();
-
-
-        /*
-         * Pastikan tabel sudah dibuat.
-         */
-
-        await env.DB
-            .prepare(`
-                INSERT INTO free_key_claims (
-                    user_id,
-                    key_id,
-                    claim_token,
-                    status,
-                    created_at
-                )
-                VALUES (
-                    ?1,
-                    ?2,
-                    ?3,
-                    ?4,
-                    ?5
-                )
-            `)
-            .bind(
-                user.id,
-                key.id,
-                claimToken,
-                "pending",
-                now
-            )
-            .run();
-
-
-        /*
-         * URL TEST
-         *
-         * NANTI AKAN DIGANTI DENGAN
-         * LINKVERTISE.
-         */
-
-        const origin =
-            new URL(request.url).origin;
-
-        const testUrl =
-            origin +
-            "/api/free-key/verify?token=" +
-            encodeURIComponent(
-                claimToken
-            );
-
 
         return json({
 
             success: true,
 
-            claim: {
-                token: claimToken,
-                status: "pending"
-            },
-
             key: {
                 id: key.id,
-                key: key.key
-            },
-
-            test_url: testUrl
+                key: key.key,
+                status: key.status,
+                expires_at:
+                    key.expires_at
+            }
 
         });
-
 
     } catch (error) {
 
@@ -388,8 +328,8 @@ export async function onRequestPost({
 
 
 /* =========================================================
-   GET USER
-   ========================================================= */
+   USER SESSION
+========================================================= */
 
 async function getUser(
     request,
@@ -402,34 +342,50 @@ async function getUser(
         ) || "";
 
 
-    const item =
-        cookie
-            .split(";")
-            .map(
-                x => x.trim()
-            )
-            .find(
-                x =>
-                    x.startsWith(
-                        "bilsx_session="
-                    )
-            );
+    let token = null;
 
 
-    if (!item) {
-        return null;
+    for (
+        const item of cookie.split(";")
+    ) {
+
+        const index =
+            item.indexOf("=");
+
+        if (index === -1) {
+            continue;
+        }
+
+
+        const name =
+            item
+                .slice(0, index)
+                .trim();
+
+
+        if (
+            name === "bilsx_session"
+        ) {
+
+            token =
+                item
+                    .slice(index + 1)
+                    .trim();
+
+            break;
+        }
     }
-
-
-    const token =
-        item.substring(
-            "bilsx_session=".length
-        );
 
 
     if (!token) {
         return null;
     }
+
+
+    try {
+        token =
+            decodeURIComponent(token);
+    } catch {}
 
 
     const tokenHash =
@@ -446,13 +402,17 @@ async function getUser(
                 u.status,
                 u.plan,
                 u.premium_expires_at
+
             FROM sessions s
+
             INNER JOIN users u
                 ON u.id = s.user_id
+
             WHERE
                 s.token_hash = ?1
                 AND s.expires_at > ?2
                 AND u.status = 'active'
+
             LIMIT 1
         `)
         .bind(
@@ -465,33 +425,29 @@ async function getUser(
 
 /* =========================================================
    SHA256
-   ========================================================= */
+========================================================= */
 
 async function sha256(value) {
 
     const digest =
         await crypto.subtle.digest(
             "SHA-256",
-            new TextEncoder()
-                .encode(value)
+            new TextEncoder().encode(value)
         );
-
 
     return [
         ...new Uint8Array(digest)
     ]
-        .map(
-            x =>
-                x.toString(16)
-                    .padStart(2, "0")
+        .map(x =>
+            x.toString(16).padStart(2, "0")
         )
         .join("");
 }
 
 
 /* =========================================================
-   KEY GENERATOR
-   ========================================================= */
+   KEY
+========================================================= */
 
 function generateKey() {
 
@@ -533,7 +489,7 @@ function generateKey() {
 
 /* =========================================================
    JSON
-   ========================================================= */
+========================================================= */
 
 function json(
     data,
