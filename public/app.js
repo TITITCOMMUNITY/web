@@ -1,4 +1,4 @@
-/* BILSX APP.JS - dashboard/login stable client */
+/* BILSX APP.JS - stable client */
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -13,7 +13,6 @@ async function api(url, options = {}) {
     }
 
     opts.headers = headers;
-
     const res = await fetch(url, opts);
     const text = await res.text();
     let data;
@@ -41,13 +40,11 @@ function setMessage(el, text, type = "") {
 function formatRemaining(ms) {
     ms = Number(ms);
     if (!Number.isFinite(ms) || ms <= 0) return "Expired";
-
     const total = Math.floor(ms / 1000);
     const d = Math.floor(total / 86400);
     const h = Math.floor((total % 86400) / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
-
     if (d) return `${d}d ${h}h ${m}m`;
     if (h) return `${h}h ${m}m`;
     if (m) return `${m}m ${s}s`;
@@ -67,7 +64,6 @@ async function currentUser() {
 async function logout() {
     const button = $("#logoutBtn");
     if (button) button.disabled = true;
-
     try {
         await api("/api/logout", { method: "POST" });
     } catch (error) {
@@ -80,9 +76,8 @@ async function logout() {
 function setupLogout() {
     const button = $("#logoutBtn");
     if (!button || button.dataset.bound === "1") return;
-
     button.dataset.bound = "1";
-    button.addEventListener("click", (event) => {
+    button.addEventListener("click", event => {
         event.preventDefault();
         logout();
     });
@@ -102,36 +97,25 @@ async function requireAuth() {
 
 function redirectByRole(user) {
     const role = String(user?.role || "user").toLowerCase();
-    if (role === "admin") {
-        window.location.replace("/admin.html");
-    } else {
-        window.location.replace("/dashboard.html");
-    }
+    window.location.replace(role === "admin" ? "/admin.html" : "/dashboard.html");
 }
 
 async function loginPage() {
-    let already = false;
-
     try {
         const data = await currentUser();
         if (data.user) {
-            already = true;
             redirectByRole(data.user);
             return;
         }
     } catch (_) {}
 
-    if (already) return;
-
     const form = $("#loginForm");
     const msg = $("#msg");
     if (!form || form.dataset.bound === "1") return;
-
     form.dataset.bound = "1";
 
-    form.addEventListener("submit", async (event) => {
+    form.addEventListener("submit", async event => {
         event.preventDefault();
-
         const login = $("#login", form)?.value.trim() || "";
         const password = $("#password", form)?.value || "";
         const submit = $("button[type=submit]", form);
@@ -150,7 +134,6 @@ async function loginPage() {
                 body: { login, password },
                 cache: "no-store"
             });
-
             if (!data.user) throw new Error("Login berhasil tetapi data user tidak diterima.");
             redirectByRole(data.user);
         } catch (error) {
@@ -168,7 +151,6 @@ function renderUser(user) {
 
     const name = $("#name");
     if (name) name.textContent = username;
-
     $$('[data-user="username"]').forEach(el => el.textContent = username);
     $$('[data-user-status]').forEach(el => el.textContent = user.status || "active");
     $$('[data-user-role]').forEach(el => el.textContent = role);
@@ -202,8 +184,7 @@ function renderKeys(keys) {
         return;
     }
 
-    const key = keys[0];
-    window.BILSX_KEY = key;
+    window.BILSX_KEY = keys[0];
 
     list.innerHTML = keys.map(k => {
         const expires = Number(k.expires_at || 0);
@@ -212,20 +193,16 @@ function renderKeys(keys) {
         const active = expires > Date.now();
         const remaining = active ? formatRemaining(expires - Date.now()) : "Expired";
 
-        return `
-            <div class="key-row">
-                <div>
-                    <strong>${escapeHtml(k.key || "—")}</strong>
-                    <div class="key-meta">
-                        <span>${escapeHtml(status.toUpperCase())}</span>
-                        <span>${expires ? escapeHtml(remaining) : "Belum aktif"}</span>
-                    </div>
-                </div>
-                <div class="key-actions">
-                    <button type="button" class="copy-key" data-copy="${escapeHtml(k.key || "")}">COPY</button>
-                    <button type="button" class="add-key" data-add-key="${Number(k.id || 0)}">+ADD</button>
-                </div>
-            </div>`;
+        return `<div class="key-row">
+            <div>
+                <strong>${escapeHtml(k.key || "—")}</strong>
+                <div class="key-meta"><span>${escapeHtml(status.toUpperCase())}</span><span>${expires ? escapeHtml(remaining) : "Belum aktif"}</span></div>
+            </div>
+            <div class="key-actions">
+                <button type="button" class="copy-key" data-copy="${escapeHtml(k.key || "")}">COPY</button>
+                <button type="button" class="add-key" data-add-key="${Number(k.id || 0)}">+ADD</button>
+            </div>
+        </div>`;
     }).join("");
 
     $$("[data-copy]", list).forEach(button => {
@@ -242,14 +219,13 @@ function renderKeys(keys) {
     });
 
     $$("[data-add-key]", list).forEach(button => {
-        button.addEventListener("click", () => requestFreeKey());
+        button.addEventListener("click", requestFreeKey);
     });
 }
 
 async function loadKeys() {
     const list = $("#licenseKeyList");
     if (list) list.innerHTML = '<div class="empty-state">Loading...</div>';
-
     try {
         const data = await api("/api/keys", { cache: "no-store" });
         renderKeys(data.keys || []);
@@ -263,8 +239,6 @@ async function loadKeys() {
 
 function updateFreeKeyUI(key) {
     const action = $("#freeKeyAction");
-    const link = $("#freeKeyLink");
-    const message = $("#freeKeyMessage");
     const expiry = $("#freeKeyExpiry");
     const bar = $("#freeKeyProgress");
     const progressText = $("#freeKeyProgressText");
@@ -274,7 +248,6 @@ function updateFreeKeyUI(key) {
             action.disabled = false;
             action.textContent = "GET KEY";
         }
-        if (link) link.hidden = true;
         if (expiry) expiry.textContent = "Belum memiliki waktu aktif.";
         if (bar) bar.style.width = "0%";
         if (progressText) progressText.textContent = "0 / 72 jam";
@@ -285,7 +258,7 @@ function updateFreeKeyUI(key) {
     const remaining = Math.max(0, expires - Date.now());
     const hours = remaining / 3600000;
     const percent = Math.min(100, (hours / 72) * 100);
-    const active = remaining > 0 && String(key.status).toLowerCase() === "active";
+    const active = remaining > 0 && String(key.status || "").toLowerCase() === "active";
 
     if (bar) bar.style.width = `${percent}%`;
     if (progressText) progressText.textContent = `${Math.floor(hours)} / 72 jam`;
@@ -309,14 +282,79 @@ async function loadFreeKey() {
 }
 
 function showLink(url) {
-    const link = $("#freeKeyLink");
-    if (!link) return;
+    const host = $("#freeKeyLink");
+    if (!host) return;
 
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.hidden = false;
-    link.textContent = "CONTINUE TO LINKVERTISE";
+    host.hidden = false;
+    host.innerHTML = "";
+    host.style.display = "grid";
+    host.style.gap = "10px";
+    host.style.marginTop = "12px";
+
+    const button = document.createElement("a");
+    button.href = url;
+    button.target = "_blank";
+    button.rel = "noopener noreferrer";
+    button.textContent = "CONTINUE TO LINKVERTISE";
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.width = "100%";
+    button.style.minHeight = "46px";
+    button.style.padding = "12px 16px";
+    button.style.borderRadius = "12px";
+    button.style.background = "linear-gradient(135deg,#735cff,#4c8dff)";
+    button.style.color = "#fff";
+    button.style.fontWeight = "800";
+    button.style.textDecoration = "none";
+    button.style.boxSizing = "border-box";
+
+    const row = document.createElement("div");
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "1fr auto";
+    row.style.gap = "8px";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = url;
+    input.readOnly = true;
+    input.setAttribute("aria-label", "Link Linkvertise");
+    input.style.width = "100%";
+    input.style.minHeight = "42px";
+    input.style.padding = "10px 12px";
+    input.style.borderRadius = "10px";
+    input.style.border = "1px solid rgba(255,255,255,.12)";
+    input.style.background = "rgba(255,255,255,.04)";
+    input.style.color = "#f5f7fb";
+    input.style.boxSizing = "border-box";
+    input.style.fontSize = "12px";
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "COPY LINK";
+    copy.style.minHeight = "42px";
+    copy.style.padding = "10px 14px";
+    copy.style.border = "0";
+    copy.style.borderRadius = "10px";
+    copy.style.background = "rgba(255,255,255,.10)";
+    copy.style.color = "#fff";
+    copy.style.fontWeight = "700";
+    copy.style.cursor = "pointer";
+
+    copy.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+        } catch {
+            input.focus();
+            input.select();
+            document.execCommand("copy");
+        }
+        copy.textContent = "COPIED";
+        setTimeout(() => copy.textContent = "COPY LINK", 1200);
+    });
+
+    row.append(input, copy);
+    host.append(button, row);
 }
 
 async function requestFreeKey() {
@@ -330,10 +368,7 @@ async function requestFreeKey() {
     setMessage(message, "Mempersiapkan Linkvertise...", "");
 
     try {
-        const data = await api("/api/free-key", {
-            method: "POST",
-            cache: "no-store"
-        });
+        const data = await api("/api/free-key", { method: "POST", cache: "no-store" });
 
         if (data.capped) {
             setMessage(message, "Free Key sudah mencapai batas maksimum 72 jam.", "success");
@@ -345,7 +380,7 @@ async function requestFreeKey() {
         if (!url) throw new Error("Server tidak mengembalikan link Linkvertise.");
 
         showLink(url);
-        setMessage(message, "Link berhasil dibuat. Selesaikan Linkvertise, lalu sistem akan memproses tambahan 6 jam.", "success");
+        setMessage(message, "Link berhasil dibuat. Tekan tombol di atas atau salin link di bawahnya.", "success");
     } catch (error) {
         console.error("Free key POST:", error);
         setMessage(message, error.message, "error");
@@ -408,21 +443,9 @@ function escapeHtml(value) {
 
 async function init() {
     const page = document.body?.dataset?.page || "";
-
-    if (page === "login") {
-        await loginPage();
-        return;
-    }
-
-    if (page === "dashboard") {
-        await dashboardPage();
-        return;
-    }
-
-    if (page === "admin") {
-        setupLogout();
-        return;
-    }
+    if (page === "login") return loginPage();
+    if (page === "dashboard") return dashboardPage();
+    if (page === "admin") setupLogout();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
