@@ -1,5 +1,6 @@
 -- BILSX Growlauncher Loader
 -- Test client for /api/gl/login + /api/gl/me + /api/script/load
+-- Requires Growlauncher fetch() and its JSON decoder: json.decode().
 
 local BILSX_API = "https://web-d8a.pages.dev/api"
 local username = ""
@@ -11,6 +12,30 @@ local scriptAlias = {}
 
 local function safe(value)
     return tostring(value or "")
+end
+
+local function jsonEscape(value)
+    value = safe(value)
+    value = value:gsub("\\", "\\\\")
+    value = value:gsub('"', '\\"')
+    value = value:gsub("\r", "\\r")
+    value = value:gsub("\n", "\\n")
+    return value
+end
+
+local function encodeMenu(menu)
+    local out = {"["}
+    for i, item in ipairs(menu) do
+        if i > 1 then table.insert(out, ",") end
+        table.insert(out, "{")
+        table.insert(out, '"type":"' .. jsonEscape(item.type) .. '"')
+        if item.text ~= nil then table.insert(out, ',"text":"' .. jsonEscape(item.text) .. '"') end
+        if item.description ~= nil then table.insert(out, ',"description":"' .. jsonEscape(item.description) .. '"') end
+        if item.alias ~= nil then table.insert(out, ',"alias":"' .. jsonEscape(item.alias) .. '"') end
+        table.insert(out, "}")
+    end
+    table.insert(out, "]")
+    return table.concat(out)
 end
 
 local function remainingText(ms)
@@ -25,12 +50,19 @@ local function remainingText(ms)
     return m .. "m"
 end
 
+local function urlEncode(value)
+    value = safe(value)
+    return value:gsub("([^%w%-%._~])", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end)
+end
+
 local function scriptUrl(id)
-    return BILSX_API .. "/script/load?script=" .. safe(id) .. "&token=" .. safe(bilsxToken)
+    return BILSX_API .. "/script/load?script=" .. urlEncode(id) .. "&token=" .. urlEncode(bilsxToken)
 end
 
 local function loadBilsxScript(id)
-    if not bilsxToken or bilsxToken == "" then
+    if bilsxToken == "" then
         logToConsole("`4Bilsx: belum login.")
         return
     end
@@ -91,7 +123,7 @@ local function buildAccountModule()
     table.insert(menu, { type = "divider" })
 
     local module = [[{"sub_name":"[Info Account]","icon":"Account Balance","description":"Account Info and Loader","menu":]]
-        .. jsonEncode(menu) .. "}"
+        .. encodeMenu(menu) .. "}"
 
     addIntoModule(module)
 end
@@ -102,16 +134,21 @@ local function loginBilsx()
         return
     end
 
-    local url = BILSX_API .. "/gl/login?username=" .. username .. "&password=" .. password
+    local url = BILSX_API .. "/gl/login?username=" .. urlEncode(username) .. "&password=" .. urlEncode(password)
     local response = fetch(url)
     if not response or response == "" then
         logToConsole("`4Bilsx: server tidak dapat dihubungi.")
         return
     end
 
-    local data = jsonDecode(response)
-    if not data or data.success ~= true then
-        logToConsole("`4Bilsx: Login gagal.")
+    local ok, data = pcall(json.decode, response)
+    if not ok or not data then
+        logToConsole("`4Bilsx: response server bukan JSON yang valid.")
+        return
+    end
+
+    if data.success ~= true then
+        logToConsole("`4Bilsx: Login gagal. `w" .. safe(data.error))
         return
     end
 
