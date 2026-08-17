@@ -1,1 +1,93 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>admin-users — BILSX</title><link rel="stylesheet" href="/style.css"></head><body><div class="page"><div class="title"><h1>admin-users</h1><p class="muted">BILSX page foundation. Backend functionality can be connected next.</p></div><div class="panel"><h2>Ready</h2><p class="muted">This page is included in the v2 structure so future maintenance does not require rebuilding the site.</p><a class="btn" href="/">Back Home</a></div></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BILSX — User Management</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body{background:radial-gradient(circle at 80% 0%,#30105c55,transparent 32%),#05050c}
+    .admin-shell{max-width:1400px;margin:auto;padding:28px 20px 60px}
+    .admin-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
+    .admin-top h1{margin:0;font-size:32px;letter-spacing:-1px}
+    .admin-top p{margin:5px 0 0;color:#9692a8}
+    .top-actions{display:flex;gap:10px;align-items:center}
+    .top-actions a,.top-actions button{padding:10px 14px;border:1px solid #ffffff14;border-radius:9px;background:#0e0c19;color:#fff;text-decoration:none;cursor:pointer}
+    .top-actions .primary{background:linear-gradient(135deg,#9d45ff,#7028db);border-color:#b66cff}
+    .toolbar{display:flex;gap:10px;margin-bottom:18px}
+    .toolbar input{flex:1;padding:13px 15px;background:#0e0c19;border:1px solid #29263a;border-radius:9px;color:#fff;outline:none}
+    .toolbar button{padding:0 18px;border:0;border-radius:9px;background:#8e3df2;color:#fff;cursor:pointer}
+    .panel{padding:0;overflow:hidden}
+    .panel-head{padding:18px 20px;border-bottom:1px solid #ffffff0d;display:flex;justify-content:space-between;align-items:center}
+    .panel-head h2{margin:0;font-size:17px}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:1050px}
+    th,td{padding:15px 14px;text-align:left;border-bottom:1px solid #ffffff0d;vertical-align:middle}
+    th{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#777184;background:#090812}
+    td{font-size:13px}
+    td small{display:block;margin-top:5px}
+    .badge{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.4px}
+    .badge.premium{background:#9b4dff22;color:#d4a9ff}
+    .badge.free{background:#ffffff0a;color:#aaa5ba}
+    .badge.active{background:#55e6a51a;color:#72e8ae}
+    .badge.inactive{background:#ff456e18;color:#ff91a8}
+    .action-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .mini-btn{border:1px solid #ffffff14;background:#161225;color:#fff;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:11px;white-space:nowrap}
+    .mini-btn:hover:not(:disabled){border-color:#9b4dff;background:#201636}
+    .mini-btn.danger{color:#ff91a8}
+    .mini-btn.premium-btn{background:#8e3df2;border-color:#a65aff}
+    .mini-btn:disabled{opacity:.35;cursor:not-allowed}
+    .duration-select{padding:7px 8px;background:#0b0912;color:#fff;border:1px solid #29263a;border-radius:7px;font-size:11px}
+    .admin-message{min-height:20px;margin:12px 0;font-size:13px}
+    .admin-message.ok{color:#72e8ae}.admin-message.error{color:#ff91a8}
+    .error-cell{color:#ff91a8}
+    @media(max-width:700px){.admin-top{align-items:flex-start;flex-direction:column}.toolbar{flex-direction:column}.toolbar button{padding:12px}}
+  </style>
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-top">
+      <div>
+        <span class="eyebrow">BILSX CONTROL CENTER</span>
+        <h1>User Management</h1>
+        <p>Manage premium access and Free Key time from one place.</p>
+      </div>
+      <div class="top-actions">
+        <a href="/admin.html">Overview</a>
+        <button id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <input id="userSearch" type="search" placeholder="Search username or email..." autocomplete="off">
+      <button id="searchBtn">Search</button>
+    </div>
+
+    <div id="adminMessage" class="admin-message"></div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Users</h2>
+        <span class="muted">Free Key maximum: 72 hours</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Account</th>
+              <th>Plan</th>
+              <th>Free Key</th>
+              <th>Status</th>
+              <th>Key Time</th>
+              <th>Premium</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/admin-users.js" defer></script>
+</body>
+</html>
