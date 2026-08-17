@@ -31,8 +31,14 @@ export async function onRequestPost(context) {
     const discordId = String(discordUser?.id || "");
     if (!discordId) return interaction("Unable to identify Discord user.", true);
 
+    // Make sure the operator table exists. This is intentionally idempotent so
+    // a fresh D1 database can start using the Discord bot without a manual SQL step.
+    await ensureOperatorTable(env.DB);
+
     const operator = await getOperator(env.DB, discordId, env.DISCORD_OWNER_ID);
     const command = String(body.data?.name || "");
+
+    console.log("DISCORD COMMAND", command, "USER", discordId, "AUTHORIZED", !!operator);
 
     if (!operator) return interaction("⛔ You are not authorized to use BILSX management commands.", true);
     if (!hasPermission(operator.permission, command)) return interaction("⛔ You do not have permission to use this command.", true);
@@ -44,9 +50,38 @@ export async function onRequestPost(context) {
       default: return interaction("Unknown command.", true);
     }
   } catch (error) {
-    console.error("DISCORD INTERACTION ERROR", error);
-    return interaction("❌ Internal server error.", true);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : "";
+    console.error("DISCORD INTERACTION ERROR:", message);
+    console.error("DISCORD INTERACTION STACK:", stack);
+    return interaction(`❌ Internal server error.\nDebug: \`${safeDebugMessage(message)}\``, true);
   }
+}
+
+async function ensureOperatorTable(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS discord_operators (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discord_user_id TEXT NOT NULL UNIQUE,
+      discord_username TEXT,
+      permission TEXT NOT NULL DEFAULT 'support',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_discord_operators_status
+    ON discord_operators(status)
+  `).run();
+}
+
+function safeDebugMessage(message) {
+  return String(message || "unknown")
+    .replace(/\s+/g, " ")
+    .replace(/[`\\]/g, "")
+    .slice(0, 180);
 }
 
 async function registerCommands(env) {
@@ -177,12 +212,20 @@ async function verifyDiscordSignature(publicKeyHex, signatureHex, timestamp, bod
 }
 
 async function getOperator(db, discordId, ownerId) {
-  const row = await db.prepare(`SELECT discord_user_id, discord_username, permission, status FROM discord_operators WHERE discord_user_id=?1 AND status='active' LIMIT 1`).bind(discordId).first();
-  if (row) return row;
+  // The owner is always trusted and does not need a D1 operator row.
+  // This also makes the very first setup work on a completely fresh database.
   if (ownerId && discordId === String(ownerId)) {
     return { discord_user_id: discordId, permission: "owner", status: "active" };
   }
-  return null;
+
+  const row = await db.prepare(`
+    SELECT discord_user_id, discord_username, permission, status
+    FROM discord_operators
+    WHERE discord_user_id=?1 AND status='active'
+    LIMIT 1
+  `).bind(discordId).first();
+
+  return row || null;
 }
 
 function hasPermission(permission, command) {
@@ -198,14 +241,29 @@ async function commandUser(db, body) {
   const username = option(body, "username");
   if (!username) return interaction("Usage: /user username", true);
 
-  const user = await db.prepare(`SELECT id, username, email, role, status, plan, premium_expires_at, created_at FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
+  const user = await db.prepare(`
+    SELECT id, username, email, role, status, plan, premium_expires_at, created_at
+    FROM users
+    WHERE lower(username)=lower(?1)
+    LIMIT 1
+  `).bind(username).first();
+
   if (!user) return interaction("❌ User not found.", true);
 
-  const key = await db.prepare(`SELECT status, activated_at, expires_at FROM license_keys WHERE user_id=?1 ORDER BY id DESC LIMIT 1`).bind(user.id).first();
+  const key = await db.prepare(`
+    SELECT status, activated_at, expires_at
+    FROM license_keys
+    WHERE user_id=?1
+    ORDER BY id DESC
+    LIMIT 1
+  `).bind(user.id).first();
+
   const now = Date.now();
   const expiry = Number(key?.expires_at || 0);
   const active = key?.status === "active" && expiry > now;
-  const premiumActive = user.plan === "premium" && (user.premium_expires_at == null || Number(user.premium_expires_at) > now);
+  const premiumActive = user.plan === "premium" && (
+    user.premium_expires_at == null || Number(user.premium_expires_at) > now
+  );
 
   return interaction(
     `👤 **BILSX Account**\n\nUsername: \`${user.username}\`\nEmail: ||${user.email}||\nRole: \`${user.role}\`\nStatus: \`${user.status}\`\nPlan: \`${premiumActive ? "premium" : "free"}\`\n\n🔑 **Free Key**\nStatus: \`${active ? "active" : "inactive"}\`\nRemaining: \`${active ? formatDuration(expiry - now) : "Inactive"}\`\nExpires: \`${active ? new Date(expiry).toISOString() : "-"}\`\n\n🔒 Password: \`not readable\``,
@@ -222,14 +280,24 @@ async function commandRegister(db, body) {
   if (username.length < 3 || username.length > 32) return interaction("❌ Invalid username length.", true);
   if (password.length < 8) return interaction("❌ Password must be at least 8 characters.", true);
 
-  const exists = await db.prepare(`SELECT id FROM users WHERE lower(username)=lower(?1) OR lower(email)=lower(?2) LIMIT 1`).bind(username, email).first();
+  const exists = await db.prepare(`
+    SELECT id FROM users
+    WHERE lower(username)=lower(?1) OR lower(email)=lower(?2)
+    LIMIT 1
+  `).bind(username, email).first();
+
   if (exists) return interaction("❌ Username or email already exists.", true);
 
   const salt = randomHex(32);
   const hash = await hashPassword(password, salt);
   const now = Date.now();
 
-  const result = await db.prepare(`INSERT INTO users (username,email,password_hash,password_salt,role,status,plan,premium_expires_at,created_at,last_login_at) VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)`).bind(username, email, hash, salt, now).run();
+  const result = await db.prepare(`
+    INSERT INTO users (
+      username,email,password_hash,password_salt,role,status,plan,
+      premium_expires_at,created_at,last_login_at
+    ) VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)
+  `).bind(username, email, hash, salt, now).run();
 
   return interaction(
     `✅ Account created.\nUsername: \`${username}\`\nEmail: \`${email}\`\nID: \`${result.meta.last_row_id}\`\nPlan: \`free\`\n\n🔐 Password was stored as a hash and cannot be retrieved later.`,
@@ -244,12 +312,22 @@ async function commandSetPassword(db, body) {
   if (!username || !password) return interaction("Usage: /setpassword username password", true);
   if (password.length < 8) return interaction("❌ Password must be at least 8 characters.", true);
 
-  const user = await db.prepare(`SELECT id FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
+  const user = await db.prepare(`
+    SELECT id FROM users
+    WHERE lower(username)=lower(?1)
+    LIMIT 1
+  `).bind(username).first();
+
   if (!user) return interaction("❌ User not found.", true);
 
   const salt = randomHex(32);
   const hash = await hashPassword(password, salt);
-  await db.prepare(`UPDATE users SET password_hash=?1,password_salt=?2 WHERE id=?3`).bind(hash, salt, user.id).run();
+
+  await db.prepare(`
+    UPDATE users
+    SET password_hash=?1,password_salt=?2
+    WHERE id=?3
+  `).bind(hash, salt, user.id).run();
 
   return interaction(`✅ Password reset completed for \`${username}\`.\nThe previous password cannot be recovered.`, true);
 }
@@ -260,14 +338,20 @@ function option(body, name) {
 }
 
 async function hashPassword(password, salt) {
-  let digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + password));
+  let digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(salt + password)
+  );
+
   const saltBytes = new TextEncoder().encode(salt);
+
   for (let i = 0; i < 100000; i++) {
     const buffer = new Uint8Array(saltBytes.length + digest.byteLength);
     buffer.set(saltBytes);
     buffer.set(new Uint8Array(digest), saltBytes.length);
     digest = await crypto.subtle.digest("SHA-256", buffer);
   }
+
   return toHex(digest);
 }
 
@@ -278,12 +362,16 @@ function randomHex(bytes) {
 function hexToBytes(hex) {
   if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("invalid hex");
   const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
   return out;
 }
 
 function toHex(data) {
-  return [...new Uint8Array(data)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return [...new Uint8Array(data)]
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function formatDuration(ms) {
@@ -293,7 +381,13 @@ function formatDuration(ms) {
 }
 
 function interaction(content, ephemeral = true) {
-  return json({ type: 4, data: { content, flags: ephemeral ? 64 : 0 } });
+  return json({
+    type: 4,
+    data: {
+      content,
+      flags: ephemeral ? 64 : 0,
+    },
+  });
 }
 
 function json(data, status = 200) {
