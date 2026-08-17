@@ -1,4 +1,7 @@
 const MAX_BODY = 10000;
+const REWARD_MS = 6 * 60 * 60 * 1000;
+const MAX_MS = 72 * 60 * 60 * 1000;
+const CLAIM_MS = 10 * 60 * 1000;
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -18,8 +21,6 @@ export async function onRequestPost(context) {
 
     const body = JSON.parse(raw);
 
-    // Discord endpoint verification PING.
-    // Register commands in the background so the PING response stays immediate.
     if (body.type === 1) {
       context.waitUntil(registerCommands(env));
       return json({ type: 1 });
@@ -31,8 +32,6 @@ export async function onRequestPost(context) {
     const discordId = String(discordUser?.id || "");
     if (!discordId) return interaction("Unable to identify Discord user.", true);
 
-    // Make sure the operator table exists. This is intentionally idempotent so
-    // a fresh D1 database can start using the Discord bot without a manual SQL step.
     await ensureOperatorTable(env.DB);
 
     const operator = await getOperator(env.DB, discordId, env.DISCORD_OWNER_ID);
@@ -45,6 +44,7 @@ export async function onRequestPost(context) {
 
     switch (command) {
       case "user": return await commandUser(env.DB, body);
+      case "getkey": return await commandGetKey(env, body);
       case "register": return await commandRegister(env.DB, body);
       case "setpassword": return await commandSetPassword(env.DB, body);
       default: return interaction("Unknown command.", true);
@@ -97,14 +97,15 @@ async function registerCommands(env) {
       name: "user",
       description: "View a BILSX user account",
       type: 1,
-      options: [
-        {
-          name: "username",
-          description: "BILSX username",
-          type: 3,
-          required: true,
-        },
-      ],
+      options: [{ name: "username", description: "BILSX username", type: 3, required: true }],
+      integration_types: [0],
+      contexts: [0],
+    },
+    {
+      name: "getkey",
+      description: "View a user's Free Key and get the Linkvertise reward link",
+      type: 1,
+      options: [{ name: "user", description: "BILSX username", type: 3, required: true }],
       integration_types: [0],
       contexts: [0],
     },
@@ -113,24 +114,9 @@ async function registerCommands(env) {
       description: "Create a BILSX user account",
       type: 1,
       options: [
-        {
-          name: "username",
-          description: "Username",
-          type: 3,
-          required: true,
-        },
-        {
-          name: "email",
-          description: "Email address",
-          type: 3,
-          required: true,
-        },
-        {
-          name: "password",
-          description: "Initial password",
-          type: 3,
-          required: true,
-        },
+        { name: "username", description: "Username", type: 3, required: true },
+        { name: "email", description: "Email address", type: 3, required: true },
+        { name: "password", description: "Initial password", type: 3, required: true },
       ],
       integration_types: [0],
       contexts: [0],
@@ -140,26 +126,14 @@ async function registerCommands(env) {
       description: "Change a BILSX user's password",
       type: 1,
       options: [
-        {
-          name: "username",
-          description: "BILSX username",
-          type: 3,
-          required: true,
-        },
-        {
-          name: "password",
-          description: "New password",
-          type: 3,
-          required: true,
-        },
+        { name: "username", description: "BILSX username", type: 3, required: true },
+        { name: "password", description: "New password", type: 3, required: true },
       ],
       integration_types: [0],
       contexts: [0],
     },
   ];
 
-  // If DISCORD_GUILD_ID is configured, commands appear immediately in that server.
-  // Otherwise register globally. Global commands can take longer to propagate.
   const guildId = String(env.DISCORD_GUILD_ID || "").trim();
   const url = guildId
     ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`
@@ -181,11 +155,7 @@ async function registerCommands(env) {
       return;
     }
 
-    console.log(
-      "DISCORD COMMAND REGISTER SUCCESS",
-      guildId ? `guild=${guildId}` : "scope=global",
-      text.slice(0, 1000)
-    );
+    console.log("DISCORD COMMAND REGISTER SUCCESS", guildId ? `guild=${guildId}` : "scope=global", text.slice(0, 1000));
   } catch (error) {
     console.error("DISCORD COMMAND REGISTER NETWORK ERROR", error);
   }
@@ -193,27 +163,14 @@ async function registerCommands(env) {
 
 async function verifyDiscordSignature(publicKeyHex, signatureHex, timestamp, body) {
   try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      hexToBytes(publicKeyHex),
-      { name: "Ed25519" },
-      false,
-      ["verify"]
-    );
-    return await crypto.subtle.verify(
-      "Ed25519",
-      key,
-      hexToBytes(signatureHex),
-      new TextEncoder().encode(timestamp + body)
-    );
+    const key = await crypto.subtle.importKey("raw", hexToBytes(publicKeyHex), { name: "Ed25519" }, false, ["verify"]);
+    return await crypto.subtle.verify("Ed25519", key, hexToBytes(signatureHex), new TextEncoder().encode(timestamp + body));
   } catch {
     return false;
   }
 }
 
 async function getOperator(db, discordId, ownerId) {
-  // The owner is always trusted and does not need a D1 operator row.
-  // This also makes the very first setup work on a completely fresh database.
   if (ownerId && discordId === String(ownerId)) {
     return { discord_user_id: discordId, permission: "owner", status: "active" };
   }
@@ -230,9 +187,9 @@ async function getOperator(db, discordId, ownerId) {
 
 function hasPermission(permission, command) {
   const map = {
-    owner: ["user", "register", "setpassword"],
-    admin: ["user", "register", "setpassword"],
-    support: ["user"],
+    owner: ["user", "getkey", "register", "setpassword"],
+    admin: ["user", "getkey", "register", "setpassword"],
+    support: ["user", "getkey"],
   };
   return (map[permission] || []).includes(command);
 }
@@ -251,7 +208,7 @@ async function commandUser(db, body) {
   if (!user) return interaction("❌ User not found.", true);
 
   const key = await db.prepare(`
-    SELECT status, activated_at, expires_at
+    SELECT key, status, activated_at, expires_at
     FROM license_keys
     WHERE user_id=?1
     ORDER BY id DESC
@@ -261,12 +218,105 @@ async function commandUser(db, body) {
   const now = Date.now();
   const expiry = Number(key?.expires_at || 0);
   const active = key?.status === "active" && expiry > now;
-  const premiumActive = user.plan === "premium" && (
-    user.premium_expires_at == null || Number(user.premium_expires_at) > now
-  );
+  const premiumActive = user.plan === "premium" && (user.premium_expires_at == null || Number(user.premium_expires_at) > now);
 
   return interaction(
-    `👤 **BILSX Account**\n\nUsername: \`${user.username}\`\nEmail: ||${user.email}||\nRole: \`${user.role}\`\nStatus: \`${user.status}\`\nPlan: \`${premiumActive ? "premium" : "free"}\`\n\n🔑 **Free Key**\nStatus: \`${active ? "active" : "inactive"}\`\nRemaining: \`${active ? formatDuration(expiry - now) : "Inactive"}\`\nExpires: \`${active ? new Date(expiry).toISOString() : "-"}\`\n\n🔒 Password: \`not readable\``,
+    `👤 **BILSX Account**\n\nUsername: \`${user.username}\`\nEmail: ||${user.email}||\nRole: \`${user.role}\`\nStatus: \`${user.status}\`\nPlan: \`${premiumActive ? "premium" : "free"}\`\n\n🔑 **Free Key**\nKey: \`${key?.key || "Not Created"}\`\nStatus: \`${active ? "active" : "inactive"}\`\nRemaining: \`${active ? formatDuration(expiry - now) : "Inactive"}\`\nExpires: \`${active ? formatDate(expiry) : "-"}\``,
+    true
+  );
+}
+
+async function commandGetKey(env, body) {
+  const username = option(body, "user");
+  if (!username) return interaction("Usage: /getkey user:username", true);
+
+  const user = await env.DB.prepare(`
+    SELECT id, username, role, status, plan, premium_expires_at
+    FROM users
+    WHERE lower(username)=lower(?1)
+    LIMIT 1
+  `).bind(username).first();
+
+  if (!user) return interaction(`❌ User \`${username}\` tidak ditemukan.`, true);
+  if (String(user.status).toLowerCase() !== "active") return interaction(`❌ Akun \`${user.username}\` berstatus \`${user.status}\` dan tidak dapat menggunakan Free Key.`, true);
+
+  const now = Date.now();
+  const premiumActive = String(user.plan).toLowerCase() === "premium" && (user.premium_expires_at == null || Number(user.premium_expires_at) > now);
+  const admin = String(user.role).toLowerCase() === "admin";
+
+  if (admin || premiumActive) {
+    return interaction(
+      `👤 **${user.username}**\n\n${admin ? "👑 Admin" : "💎 Premium"}\n\nFree Key tidak diperlukan untuk akun ini.`,
+      true
+    );
+  }
+
+  let key = await env.DB.prepare(`
+    SELECT id, key, duration_days, status, created_at, activated_at, expires_at
+    FROM license_keys
+    WHERE user_id=?1
+    ORDER BY id DESC
+    LIMIT 1
+  `).bind(user.id).first();
+
+  if (!key) {
+    const generated = generateKey();
+    await env.DB.prepare(`
+      INSERT INTO license_keys (key,user_id,duration_days,status,created_at)
+      VALUES (?1,?2,0,'unused',?3)
+    `).bind(generated, user.id, now).run();
+
+    key = await env.DB.prepare(`
+      SELECT id, key, duration_days, status, created_at, activated_at, expires_at
+      FROM license_keys
+      WHERE user_id=?1
+      ORDER BY id DESC
+      LIMIT 1
+    `).bind(user.id).first();
+  }
+
+  const expiry = Number(key?.expires_at || 0);
+  const active = key?.status === "active" && expiry > now;
+  const maxExpiry = now + MAX_MS;
+
+  if (active && expiry >= maxExpiry) {
+    return interaction(
+      `🔑 **Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`ACTIVE\`\nExpires: \`${formatDate(expiry)}\`\nRemaining: \`${formatDuration(expiry - now)}\`\n\n⚠️ Batas maksimum 72 jam sudah tercapai.\nTidak perlu membuka Linkvertise lagi sampai waktu berkurang.`,
+      true
+    );
+  }
+
+  let claim = await env.DB.prepare(`
+    SELECT id, claim_token, created_at, expires_at
+    FROM free_key_claims
+    WHERE user_id=?1 AND key_id=?2 AND status='pending' AND expires_at>?3
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(user.id, key.id, now).first();
+
+  if (!claim) {
+    const claimToken = generateToken();
+    const claimExpires = now + CLAIM_MS;
+
+    await env.DB.prepare(`
+      INSERT INTO free_key_claims (user_id,key_id,claim_token,status,created_at,expires_at)
+      VALUES (?1,?2,?3,'pending',?4,?5)
+    `).bind(user.id, key.id, claimToken, now, claimExpires).run();
+
+    claim = { claim_token: claimToken, expires_at: claimExpires };
+  }
+
+  const link = String(env.LINKVERTISE_URL || "").trim();
+  if (!link) {
+    return interaction("❌ LINKVERTISE_URL belum dikonfigurasi di Cloudflare Secrets/Variables.", true);
+  }
+
+  const keyStatus = active ? "ACTIVE" : (expiry > 0 ? "EXPIRED" : "NOT ACTIVE");
+  const expiryText = active ? formatDate(expiry) : "Belum aktif";
+  const remainingText = active ? formatDuration(expiry - now) : "0h 0m";
+
+  return interaction(
+    `🔑 **BILSX Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`${keyStatus}\`\nExpires: \`${expiryText}\`\nRemaining: \`${remainingText}\`\n\n🎁 **Reward**\nMenyelesaikan Linkvertise akan menambahkan **+6 jam**.\nMaksimum Free Key: **72 jam**.\n\n🔗 **LINKVERTISE**\n${link}\n\n➡️ Buka link di atas, selesaikan Linkvertise, lalu waktu key akan bertambah otomatis.\n\nClaim berlaku sampai: \`${formatDate(Number(claim.expires_at))}\``,
     true
   );
 }
@@ -293,16 +343,11 @@ async function commandRegister(db, body) {
   const now = Date.now();
 
   const result = await db.prepare(`
-    INSERT INTO users (
-      username,email,password_hash,password_salt,role,status,plan,
-      premium_expires_at,created_at,last_login_at
-    ) VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)
+    INSERT INTO users (username,email,password_hash,password_salt,role,status,plan,premium_expires_at,created_at,last_login_at)
+    VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)
   `).bind(username, email, hash, salt, now).run();
 
-  return interaction(
-    `✅ Account created.\nUsername: \`${username}\`\nEmail: \`${email}\`\nID: \`${result.meta.last_row_id}\`\nPlan: \`free\`\n\n🔐 Password was stored as a hash and cannot be retrieved later.`,
-    true
-  );
+  return interaction(`✅ Account created.\nUsername: \`${username}\`\nEmail: \`${email}\`\nID: \`${result.meta.last_row_id}\`\nPlan: \`free\`\n\n🔐 Password was stored as a hash and cannot be retrieved later.`, true);
 }
 
 async function commandSetPassword(db, body) {
@@ -312,22 +357,13 @@ async function commandSetPassword(db, body) {
   if (!username || !password) return interaction("Usage: /setpassword username password", true);
   if (password.length < 8) return interaction("❌ Password must be at least 8 characters.", true);
 
-  const user = await db.prepare(`
-    SELECT id FROM users
-    WHERE lower(username)=lower(?1)
-    LIMIT 1
-  `).bind(username).first();
-
+  const user = await db.prepare(`SELECT id FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
   if (!user) return interaction("❌ User not found.", true);
 
   const salt = randomHex(32);
   const hash = await hashPassword(password, salt);
 
-  await db.prepare(`
-    UPDATE users
-    SET password_hash=?1,password_salt=?2
-    WHERE id=?3
-  `).bind(hash, salt, user.id).run();
+  await db.prepare(`UPDATE users SET password_hash=?1,password_salt=?2 WHERE id=?3`).bind(hash, salt, user.id).run();
 
   return interaction(`✅ Password reset completed for \`${username}\`.\nThe previous password cannot be recovered.`, true);
 }
@@ -337,21 +373,31 @@ function option(body, name) {
   return item == null ? "" : String(item.value ?? "").trim();
 }
 
+function generateKey() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "BLSX-FREE-";
+  for (let group = 0; group < 2; group++) {
+    if (group) result += "-";
+    for (let i = 0; i < 4; i++) result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
+function generateToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function hashPassword(password, salt) {
-  let digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(salt + password)
-  );
-
+  let digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + password));
   const saltBytes = new TextEncoder().encode(salt);
-
   for (let i = 0; i < 100000; i++) {
     const buffer = new Uint8Array(saltBytes.length + digest.byteLength);
     buffer.set(saltBytes);
     buffer.set(new Uint8Array(digest), saltBytes.length);
     digest = await crypto.subtle.digest("SHA-256", buffer);
   }
-
   return toHex(digest);
 }
 
@@ -362,22 +408,25 @@ function randomHex(bytes) {
 function hexToBytes(hex) {
   if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("invalid hex");
   const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
 
 function toHex(data) {
-  return [...new Uint8Array(data)]
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(data)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 function formatDuration(ms) {
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
+  const totalMinutes = Math.max(0, Math.floor(Number(ms || 0) / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return `${h}h ${m}m`;
+}
+
+function formatDate(ms) {
+  const value = Number(ms || 0);
+  if (!value) return "-";
+  return new Date(value).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour12: false });
 }
 
 function interaction(content, ephemeral = true) {
@@ -393,9 +442,6 @@ function interaction(content, ephemeral = true) {
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store",
-    },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
