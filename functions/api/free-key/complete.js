@@ -1,5 +1,6 @@
 const REWARD_MS = 6 * 60 * 60 * 1000;
 const MAX_MS = 72 * 60 * 60 * 1000;
+const CLAIM_COOKIE = "bilsx_free_key_claim";
 
 export async function onRequestGet({ request, env }) {
     try {
@@ -20,59 +21,44 @@ export async function onRequestGet({ request, env }) {
             return html("Verification Failed", "Linkvertise tidak dapat diverifikasi.");
         }
 
-        const now = Date.now();
+        const claimToken = getCookie(request.headers.get("Cookie") || "", CLAIM_COOKIE);
+        if (!claimToken || !/^[0-9a-f]{64}$/i.test(claimToken)) {
+            return html("Claim Missing", "Sesi Free Key tidak ditemukan. Silakan mulai kembali dari tombol Get Key.");
+        }
 
-        // The current database schema does not store the Linkvertise hash on a claim.
-        // Therefore we can safely consume only the newest still-valid pending claim.
-        // The claim is consumed atomically below so it cannot be rewarded twice.
-        const claim = await env.DB
-            .prepare(`
-                SELECT id, user_id, key_id, status, created_at, expires_at
-                FROM free_key_claims
-                WHERE status = 'pending' AND expires_at > ?1
-                ORDER BY created_at DESC
-                LIMIT 1
-            `)
-            .bind(now)
-            .first();
+        const now = Date.now();
+        const claim = await env.DB.prepare(`
+            SELECT id, user_id, key_id, status, created_at, expires_at
+            FROM free_key_claims
+            WHERE claim_token = ?1
+              AND status = 'pending'
+              AND expires_at > ?2
+            LIMIT 1
+        `).bind(claimToken, now).first();
 
         if (!claim) {
-            return html(
-                "Claim Expired",
-                "Claim Free Key sudah tidak aktif. Silakan kembali ke dashboard dan tekan Get Key lagi."
-            );
+            return html("Claim Expired", "Claim Free Key sudah tidak aktif. Silakan tekan Get Key lagi.");
         }
 
-        const key = await env.DB
-            .prepare(`
-                SELECT id, user_id, key, status, activated_at, expires_at
-                FROM license_keys
-                WHERE id = ?1 AND user_id = ?2
-                LIMIT 1
-            `)
-            .bind(claim.key_id, claim.user_id)
-            .first();
+        const key = await env.DB.prepare(`
+            SELECT id, user_id, key, status, activated_at, expires_at
+            FROM license_keys
+            WHERE id = ?1 AND user_id = ?2
+            LIMIT 1
+        `).bind(claim.key_id, claim.user_id).first();
 
         if (!key) {
-            return html("Key Error", "License key tidak ditemukan untuk akun ini.");
+            return html("Key Error", "License key tidak ditemukan untuk claim ini.");
         }
 
-        const currentExpiry = Number(key.expires_at || 0) > now
-            ? Number(key.expires_at)
-            : now;
-
+        const currentExpiry = Number(key.expires_at || 0) > now ? Number(key.expires_at) : now;
         const maxExpiry = now + MAX_MS;
 
-        // Consume the claim before changing the key. This prevents the same
-        // Linkvertise verification from being rewarded twice.
-        const claimUpdate = await env.DB
-            .prepare(`
-                UPDATE free_key_claims
-                SET status = 'completed', completed_at = ?1
-                WHERE id = ?2 AND status = 'pending' AND expires_at > ?1
-            `)
-            .bind(now, claim.id)
-            .run();
+        const claimUpdate = await env.DB.prepare(`
+            UPDATE free_key_claims
+            SET status = 'completed', completed_at = ?1
+            WHERE id = ?2 AND claim_token = ?3 AND status = 'pending' AND expires_at > ?1
+        `).bind(now, claim.id, claimToken).run();
 
         if (!claimUpdate.meta || claimUpdate.meta.changes !== 1) {
             return html("Already Claimed", "Claim ini sudah digunakan atau sudah tidak berlaku.");
@@ -85,16 +71,13 @@ export async function onRequestGet({ request, env }) {
         let newExpiry = currentExpiry + REWARD_MS;
         if (newExpiry > maxExpiry) newExpiry = maxExpiry;
 
-        const keyUpdate = await env.DB
-            .prepare(`
-                UPDATE license_keys
-                SET status = 'active',
-                    activated_at = COALESCE(activated_at, ?1),
-                    expires_at = ?2
-                WHERE id = ?3 AND user_id = ?4
-            `)
-            .bind(now, newExpiry, key.id, claim.user_id)
-            .run();
+        const keyUpdate = await env.DB.prepare(`
+            UPDATE license_keys
+            SET status = 'active',
+                activated_at = COALESCE(activated_at, ?1),
+                expires_at = ?2
+            WHERE id = ?3 AND user_id = ?4
+        `).bind(now, newExpiry, key.id, claim.user_id).run();
 
         if (!keyUpdate.meta || keyUpdate.meta.changes !== 1) {
             console.error("LICENSE KEY UPDATE FAILED", keyUpdate);
@@ -102,11 +85,9 @@ export async function onRequestGet({ request, env }) {
         }
 
         const remainingHours = Math.ceil((newExpiry - now) / (60 * 60 * 1000));
-
-        return html(
-            "Success",
-            `Berhasil! Free Key mendapatkan tambahan 6 jam. Waktu aktif saat ini sekitar ${remainingHours} jam.`
-        );
+        const response = html("Success", `Berhasil! Free Key mendapatkan tambahan 6 jam. Waktu aktif saat ini sekitar ${remainingHours} jam.`);
+        response.headers.append("Set-Cookie", `${CLAIM_COOKIE}=; Max-Age=0; Path=/api/free-key; Secure; HttpOnly; SameSite=Lax`);
+        return response;
     } catch (error) {
         console.error("FREE KEY COMPLETE ERROR:", error);
         return html("Server Error", "Terjadi kesalahan pada server.");
@@ -125,9 +106,7 @@ async function verifyLinkvertise(hash, token) {
         let parsed = null;
         try {
             parsed = JSON.parse(text);
-        } catch (_) {
-            // Older/alternate responses may be plain text TRUE/FALSE.
-        }
+        } catch (_) {}
 
         const normalized = text.toUpperCase();
         const ok = response.ok && (
@@ -136,37 +115,31 @@ async function verifyLinkvertise(hash, token) {
             parsed?.success === true
         );
 
-        return {
-            ok,
-            http: response.status,
-            response: text
-        };
+        return { ok, http: response.status, response: text };
     } catch (error) {
         console.error("LINKVERTISE VERIFY ERROR:", error);
-        return {
-            ok: false,
-            http: "FETCH_ERROR",
-            response: error instanceof Error ? error.message : String(error)
-        };
+        return { ok: false, http: "FETCH_ERROR", response: error instanceof Error ? error.message : String(error) };
     }
+}
+
+function getCookie(header, name) {
+    for (const part of header.split(";")) {
+        const index = part.indexOf("=");
+        if (index === -1) continue;
+        if (part.slice(0, index).trim() === name) {
+            try { return decodeURIComponent(part.slice(index + 1).trim()); } catch { return null; }
+        }
+    }
+    return null;
 }
 
 function html(title, message) {
     return new Response(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:#07070a;color:#fff;font-family:Arial,sans-serif}.card{width:min(100%,440px);padding:32px;border-radius:18px;background:#121216;border:1px solid rgba(255,255,255,.08);text-align:center;box-shadow:0 20px 70px rgba(0,0,0,.5)}h1{margin:0 0 14px}p{margin:0;line-height:1.6;color:#aaa}a{display:inline-block;margin-top:22px;padding:12px 22px;border-radius:10px;background:#fff;color:#000;text-decoration:none;font-weight:600}</style></head><body><div class="card"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><a href="/dashboard.html">Kembali ke Dashboard</a></div></body></html>`, {
         status: 200,
-        headers: {
-            "Content-Type": "text/html; charset=UTF-8",
-            "Cache-Control": "no-store"
-        }
+        headers: { "Content-Type": "text/html; charset=UTF-8", "Cache-Control": "no-store" }
     });
 }
 
 function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, character => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-    }[character]));
+    return String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character]));
 }
