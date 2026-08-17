@@ -5,27 +5,20 @@ const CLAIM_MS = 10 * 60 * 1000;
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-
   try {
     const raw = await request.text();
     if (raw.length > MAX_BODY) return json({ error: "REQUEST_TOO_LARGE" }, 413);
-
     const publicKey = env.DISCORD_PUBLIC_KEY;
     if (!publicKey) return json({ error: "DISCORD_PUBLIC_KEY_NOT_CONFIGURED" }, 500);
-
     const signature = request.headers.get("X-Signature-Ed25519");
     const timestamp = request.headers.get("X-Signature-Timestamp");
-    if (!signature || !timestamp || !(await verifyDiscordSignature(publicKey, signature, timestamp, raw))) {
-      return json({ error: "INVALID_SIGNATURE" }, 401);
-    }
+    if (!signature || !timestamp || !(await verifyDiscordSignature(publicKey, signature, timestamp, raw))) return json({ error: "INVALID_SIGNATURE" }, 401);
 
     const body = JSON.parse(raw);
-
     if (body.type === 1) {
       context.waitUntil(registerCommands(env));
       return json({ type: 1 });
     }
-
     if (body.type !== 2) return interaction("Unsupported interaction.", true);
 
     const discordUser = body.member?.user || body.user;
@@ -33,12 +26,8 @@ export async function onRequestPost(context) {
     if (!discordId) return interaction("Unable to identify Discord user.", true);
 
     await ensureOperatorTable(env.DB);
-
     const operator = await getOperator(env.DB, discordId, env.DISCORD_OWNER_ID);
     const command = String(body.data?.name || "");
-
-    console.log("DISCORD COMMAND", command, "USER", discordId, "AUTHORIZED", !!operator);
-
     if (!operator) return interaction("⛔ You are not authorized to use BILSX management commands.", true);
     if (!hasPermission(operator.permission, command)) return interaction("⛔ You do not have permission to use this command.", true);
 
@@ -51,397 +40,145 @@ export async function onRequestPost(context) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : "";
-    console.error("DISCORD INTERACTION ERROR:", message);
-    console.error("DISCORD INTERACTION STACK:", stack);
+    console.error("DISCORD INTERACTION ERROR:", message, error?.stack || "");
     return interaction(`❌ Internal server error.\nDebug: \`${safeDebugMessage(message)}\``, true);
   }
 }
 
 async function ensureOperatorTable(db) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS discord_operators (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      discord_user_id TEXT NOT NULL UNIQUE,
-      discord_username TEXT,
-      permission TEXT NOT NULL DEFAULT 'support',
-      status TEXT NOT NULL DEFAULT 'active',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )
-  `).run();
-
-  await db.prepare(`
-    CREATE INDEX IF NOT EXISTS idx_discord_operators_status
-    ON discord_operators(status)
-  `).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS discord_operators (id INTEGER PRIMARY KEY AUTOINCREMENT, discord_user_id TEXT NOT NULL UNIQUE, discord_username TEXT, permission TEXT NOT NULL DEFAULT 'support', status TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_discord_operators_status ON discord_operators(status)`).run();
 }
 
-function safeDebugMessage(message) {
-  return String(message || "unknown")
-    .replace(/\s+/g, " ")
-    .replace(/[`\\]/g, "")
-    .slice(0, 180);
-}
+function safeDebugMessage(message) { return String(message || "unknown").replace(/\s+/g, " ").replace(/[`\\]/g, "").slice(0, 180); }
 
 async function registerCommands(env) {
   const token = env.DISCORD_BOT_TOKEN;
   const applicationId = env.DISCORD_APPLICATION_ID;
-  if (!token || !applicationId) {
-    console.error("DISCORD COMMAND REGISTER: missing DISCORD_BOT_TOKEN or DISCORD_APPLICATION_ID");
-    return;
-  }
+  if (!token || !applicationId) return console.error("DISCORD COMMAND REGISTER: missing DISCORD_BOT_TOKEN or DISCORD_APPLICATION_ID");
 
   const commands = [
-    {
-      name: "user",
-      description: "View a BILSX user account",
-      type: 1,
-      options: [{ name: "username", description: "BILSX username", type: 3, required: true }],
-      integration_types: [0],
-      contexts: [0],
-    },
-    {
-      name: "getkey",
-      description: "View a user's Free Key and get the Linkvertise reward link",
-      type: 1,
-      options: [{ name: "user", description: "BILSX username", type: 3, required: true }],
-      integration_types: [0],
-      contexts: [0],
-    },
-    {
-      name: "register",
-      description: "Create a BILSX user account",
-      type: 1,
-      options: [
-        { name: "username", description: "Username", type: 3, required: true },
-        { name: "email", description: "Email address", type: 3, required: true },
-        { name: "password", description: "Initial password", type: 3, required: true },
-      ],
-      integration_types: [0],
-      contexts: [0],
-    },
-    {
-      name: "setpassword",
-      description: "Change a BILSX user's password",
-      type: 1,
-      options: [
-        { name: "username", description: "BILSX username", type: 3, required: true },
-        { name: "password", description: "New password", type: 3, required: true },
-      ],
-      integration_types: [0],
-      contexts: [0],
-    },
+    { name: "user", description: "View a BILSX user account", type: 1, options: [{ name: "username", description: "BILSX username", type: 3, required: true }], integration_types: [0], contexts: [0] },
+    { name: "getkey", description: "View a user's Free Key and get a secure Linkvertise claim link", type: 1, options: [{ name: "user", description: "BILSX username", type: 3, required: true }], integration_types: [0], contexts: [0] },
+    { name: "register", description: "Create a BILSX user account", type: 1, options: [{ name: "username", description: "Username", type: 3, required: true }, { name: "email", description: "Email address", type: 3, required: true }, { name: "password", description: "Initial password", type: 3, required: true }], integration_types: [0], contexts: [0] },
+    { name: "setpassword", description: "Change a BILSX user's password", type: 1, options: [{ name: "username", description: "Username", type: 3, required: true }, { name: "password", description: "New password", type: 3, required: true }], integration_types: [0], contexts: [0] },
   ];
 
   const guildId = String(env.DISCORD_GUILD_ID || "").trim();
-  const url = guildId
-    ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`
-    : `https://discord.com/api/v10/applications/${applicationId}/commands`;
-
+  const url = guildId ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands` : `https://discord.com/api/v10/applications/${applicationId}/commands`;
   try {
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Authorization": `Bot ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(commands),
-    });
-
+    const response = await fetch(url, { method: "PUT", headers: { "Authorization": `Bot ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(commands) });
     const text = await response.text();
-    if (!response.ok) {
-      console.error("DISCORD COMMAND REGISTER FAILED", response.status, text);
-      return;
-    }
-
-    console.log("DISCORD COMMAND REGISTER SUCCESS", guildId ? `guild=${guildId}` : "scope=global", text.slice(0, 1000));
-  } catch (error) {
-    console.error("DISCORD COMMAND REGISTER NETWORK ERROR", error);
-  }
+    if (!response.ok) console.error("DISCORD COMMAND REGISTER FAILED", response.status, text);
+    else console.log("DISCORD COMMAND REGISTER SUCCESS", guildId ? `guild=${guildId}` : "scope=global");
+  } catch (error) { console.error("DISCORD COMMAND REGISTER NETWORK ERROR", error); }
 }
 
 async function verifyDiscordSignature(publicKeyHex, signatureHex, timestamp, body) {
   try {
     const key = await crypto.subtle.importKey("raw", hexToBytes(publicKeyHex), { name: "Ed25519" }, false, ["verify"]);
     return await crypto.subtle.verify("Ed25519", key, hexToBytes(signatureHex), new TextEncoder().encode(timestamp + body));
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function getOperator(db, discordId, ownerId) {
-  if (ownerId && discordId === String(ownerId)) {
-    return { discord_user_id: discordId, permission: "owner", status: "active" };
-  }
-
-  const row = await db.prepare(`
-    SELECT discord_user_id, discord_username, permission, status
-    FROM discord_operators
-    WHERE discord_user_id=?1 AND status='active'
-    LIMIT 1
-  `).bind(discordId).first();
-
-  return row || null;
+  if (ownerId && discordId === String(ownerId)) return { discord_user_id: discordId, permission: "owner", status: "active" };
+  return db.prepare(`SELECT discord_user_id, discord_username, permission, status FROM discord_operators WHERE discord_user_id=?1 AND status='active' LIMIT 1`).bind(discordId).first();
 }
 
 function hasPermission(permission, command) {
-  const map = {
-    owner: ["user", "getkey", "register", "setpassword"],
-    admin: ["user", "getkey", "register", "setpassword"],
-    support: ["user", "getkey"],
-  };
+  const map = { owner: ["user", "getkey", "register", "setpassword"], admin: ["user", "getkey", "register", "setpassword"], support: ["user", "getkey"] };
   return (map[permission] || []).includes(command);
 }
 
 async function commandUser(db, body) {
   const username = option(body, "username");
   if (!username) return interaction("Usage: /user username", true);
-
-  const user = await db.prepare(`
-    SELECT id, username, email, role, status, plan, premium_expires_at, created_at
-    FROM users
-    WHERE lower(username)=lower(?1)
-    LIMIT 1
-  `).bind(username).first();
-
+  const user = await db.prepare(`SELECT id, username, email, role, status, plan, premium_expires_at, created_at FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
   if (!user) return interaction("❌ User not found.", true);
-
-  const key = await db.prepare(`
-    SELECT key, status, activated_at, expires_at
-    FROM license_keys
-    WHERE user_id=?1
-    ORDER BY id DESC
-    LIMIT 1
-  `).bind(user.id).first();
-
+  const key = await db.prepare(`SELECT key, status, activated_at, expires_at FROM license_keys WHERE user_id=?1 ORDER BY id DESC LIMIT 1`).bind(user.id).first();
   const now = Date.now();
   const expiry = Number(key?.expires_at || 0);
   const active = key?.status === "active" && expiry > now;
   const premiumActive = user.plan === "premium" && (user.premium_expires_at == null || Number(user.premium_expires_at) > now);
-
-  return interaction(
-    `👤 **BILSX Account**\n\nUsername: \`${user.username}\`\nEmail: ||${user.email}||\nRole: \`${user.role}\`\nStatus: \`${user.status}\`\nPlan: \`${premiumActive ? "premium" : "free"}\`\n\n🔑 **Free Key**\nKey: \`${key?.key || "Not Created"}\`\nStatus: \`${active ? "active" : "inactive"}\`\nRemaining: \`${active ? formatDuration(expiry - now) : "Inactive"}\`\nExpires: \`${active ? formatDate(expiry) : "-"}\``,
-    true
-  );
+  return interaction(`👤 **BILSX Account**\n\nUsername: \`${user.username}\`\nEmail: ||${user.email}||\nRole: \`${user.role}\`\nStatus: \`${user.status}\`\nPlan: \`${premiumActive ? "premium" : "free"}\`\n\n🔑 **Free Key**\nKey: \`${key?.key || "Not Created"}\`\nStatus: \`${active ? "active" : "inactive"}\`\nRemaining: \`${active ? formatDuration(expiry - now) : "Inactive"}\`\nExpires: \`${active ? formatDate(expiry) : "-"}\``, true);
 }
 
 async function commandGetKey(env, body) {
   const username = option(body, "user");
   if (!username) return interaction("Usage: /getkey user:username", true);
-
-  const user = await env.DB.prepare(`
-    SELECT id, username, role, status, plan, premium_expires_at
-    FROM users
-    WHERE lower(username)=lower(?1)
-    LIMIT 1
-  `).bind(username).first();
-
+  const user = await env.DB.prepare(`SELECT id, username, role, status, plan, premium_expires_at FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
   if (!user) return interaction(`❌ User \`${username}\` tidak ditemukan.`, true);
   if (String(user.status).toLowerCase() !== "active") return interaction(`❌ Akun \`${user.username}\` berstatus \`${user.status}\` dan tidak dapat menggunakan Free Key.`, true);
 
   const now = Date.now();
   const premiumActive = String(user.plan).toLowerCase() === "premium" && (user.premium_expires_at == null || Number(user.premium_expires_at) > now);
   const admin = String(user.role).toLowerCase() === "admin";
+  if (admin || premiumActive) return interaction(`👤 **${user.username}**\n\n${admin ? "👑 Admin" : "💎 Premium"}\n\nFree Key tidak diperlukan untuk akun ini.`, true);
 
-  if (admin || premiumActive) {
-    return interaction(
-      `👤 **${user.username}**\n\n${admin ? "👑 Admin" : "💎 Premium"}\n\nFree Key tidak diperlukan untuk akun ini.`,
-      true
-    );
-  }
-
-  let key = await env.DB.prepare(`
-    SELECT id, key, duration_days, status, created_at, activated_at, expires_at
-    FROM license_keys
-    WHERE user_id=?1
-    ORDER BY id DESC
-    LIMIT 1
-  `).bind(user.id).first();
-
+  let key = await env.DB.prepare(`SELECT id, key, duration_days, status, created_at, activated_at, expires_at FROM license_keys WHERE user_id=?1 ORDER BY id DESC LIMIT 1`).bind(user.id).first();
   if (!key) {
     const generated = generateKey();
-    await env.DB.prepare(`
-      INSERT INTO license_keys (key,user_id,duration_days,status,created_at)
-      VALUES (?1,?2,0,'unused',?3)
-    `).bind(generated, user.id, now).run();
-
-    key = await env.DB.prepare(`
-      SELECT id, key, duration_days, status, created_at, activated_at, expires_at
-      FROM license_keys
-      WHERE user_id=?1
-      ORDER BY id DESC
-      LIMIT 1
-    `).bind(user.id).first();
+    await env.DB.prepare(`INSERT INTO license_keys (key,user_id,duration_days,status,created_at) VALUES (?1,?2,0,'unused',?3)`).bind(generated, user.id, now).run();
+    key = await env.DB.prepare(`SELECT id, key, duration_days, status, created_at, activated_at, expires_at FROM license_keys WHERE user_id=?1 ORDER BY id DESC LIMIT 1`).bind(user.id).first();
   }
+  if (!key) return interaction("❌ License key gagal dibuat.", true);
 
-  const expiry = Number(key?.expires_at || 0);
-  const active = key?.status === "active" && expiry > now;
-  const maxExpiry = now + MAX_MS;
+  const expiry = Number(key.expires_at || 0);
+  const active = key.status === "active" && expiry > now;
+  if (active && expiry >= now + MAX_MS) return interaction(`🔑 **Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`ACTIVE\`\nExpires: \`${formatDate(expiry)}\`\nRemaining: \`${formatDuration(expiry - now)}\`\n\n⚠️ Batas maksimum 72 jam sudah tercapai.`, true);
 
-  if (active && expiry >= maxExpiry) {
-    return interaction(
-      `🔑 **Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`ACTIVE\`\nExpires: \`${formatDate(expiry)}\`\nRemaining: \`${formatDuration(expiry - now)}\`\n\n⚠️ Batas maksimum 72 jam sudah tercapai.\nTidak perlu membuka Linkvertise lagi sampai waktu berkurang.`,
-      true
-    );
-  }
-
-  let claim = await env.DB.prepare(`
-    SELECT id, claim_token, created_at, expires_at
-    FROM free_key_claims
-    WHERE user_id=?1 AND key_id=?2 AND status='pending' AND expires_at>?3
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).bind(user.id, key.id, now).first();
-
+  let claim = await env.DB.prepare(`SELECT id, claim_token, created_at, expires_at FROM free_key_claims WHERE user_id=?1 AND key_id=?2 AND status='pending' AND expires_at>?3 ORDER BY created_at DESC LIMIT 1`).bind(user.id, key.id, now).first();
   if (!claim) {
     const claimToken = generateToken();
     const claimExpires = now + CLAIM_MS;
-
-    await env.DB.prepare(`
-      INSERT INTO free_key_claims (user_id,key_id,claim_token,status,created_at,expires_at)
-      VALUES (?1,?2,?3,'pending',?4,?5)
-    `).bind(user.id, key.id, claimToken, now, claimExpires).run();
-
+    await env.DB.prepare(`INSERT INTO free_key_claims (user_id,key_id,claim_token,status,created_at,expires_at) VALUES (?1,?2,?3,'pending',?4,?5)`).bind(user.id, key.id, claimToken, now, claimExpires).run();
     claim = { claim_token: claimToken, expires_at: claimExpires };
   }
 
-  const link = String(env.LINKVERTISE_URL || "").trim();
-  if (!link) {
-    return interaction("❌ LINKVERTISE_URL belum dikonfigurasi di Cloudflare Secrets/Variables.", true);
-  }
+  const linkvertise = String(env.LINKVERTISE_URL || "").trim();
+  if (!linkvertise) return interaction("❌ LINKVERTISE_URL belum dikonfigurasi di Cloudflare Secrets/Variables.", true);
 
+  const startUrl = new URL("/api/free-key/start", "https://web-d8a.pages.dev");
+  startUrl.searchParams.set("claim", claim.claim_token);
   const keyStatus = active ? "ACTIVE" : (expiry > 0 ? "EXPIRED" : "NOT ACTIVE");
   const expiryText = active ? formatDate(expiry) : "Belum aktif";
   const remainingText = active ? formatDuration(expiry - now) : "0h 0m";
 
-  return interaction(
-    `🔑 **BILSX Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`${keyStatus}\`\nExpires: \`${expiryText}\`\nRemaining: \`${remainingText}\`\n\n🎁 **Reward**\nMenyelesaikan Linkvertise akan menambahkan **+6 jam**.\nMaksimum Free Key: **72 jam**.\n\n🔗 **LINKVERTISE**\n${link}\n\n➡️ Buka link di atas, selesaikan Linkvertise, lalu waktu key akan bertambah otomatis.\n\nClaim berlaku sampai: \`${formatDate(Number(claim.expires_at))}\``,
-    true
-  );
+  return interaction(`🔑 **BILSX Free Key — ${user.username}**\n\nKey: \`${key.key}\`\nStatus: \`${keyStatus}\`\nExpires: \`${expiryText}\`\nRemaining: \`${remainingText}\`\n\n🎁 **Reward**\nSelesaikan Linkvertise untuk mendapatkan **+6 jam**.\nMaksimum Free Key: **72 jam**.\n\n🔗 **START LINKVERTISE**\n${startUrl.toString()}\n\n➡️ Link ini mengikat sesi ke user ${user.username}, sehingga completion tidak bisa tertukar dengan user lain.\nClaim berlaku sampai: \`${formatDate(Number(claim.expires_at))}\``, true);
 }
 
 async function commandRegister(db, body) {
-  const username = option(body, "username");
-  const email = option(body, "email");
-  const password = option(body, "password");
-
+  const username = option(body, "username"), email = option(body, "email"), password = option(body, "password");
   if (!username || !email || !password) return interaction("Usage: /register username email password", true);
   if (username.length < 3 || username.length > 32) return interaction("❌ Invalid username length.", true);
   if (password.length < 8) return interaction("❌ Password must be at least 8 characters.", true);
-
-  const exists = await db.prepare(`
-    SELECT id FROM users
-    WHERE lower(username)=lower(?1) OR lower(email)=lower(?2)
-    LIMIT 1
-  `).bind(username, email).first();
-
+  const exists = await db.prepare(`SELECT id FROM users WHERE lower(username)=lower(?1) OR lower(email)=lower(?2) LIMIT 1`).bind(username, email).first();
   if (exists) return interaction("❌ Username or email already exists.", true);
-
-  const salt = randomHex(32);
-  const hash = await hashPassword(password, salt);
-  const now = Date.now();
-
-  const result = await db.prepare(`
-    INSERT INTO users (username,email,password_hash,password_salt,role,status,plan,premium_expires_at,created_at,last_login_at)
-    VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)
-  `).bind(username, email, hash, salt, now).run();
-
+  const salt = randomHex(32), hash = await hashPassword(password, salt), now = Date.now();
+  const result = await db.prepare(`INSERT INTO users (username,email,password_hash,password_salt,role,status,plan,premium_expires_at,created_at,last_login_at) VALUES (?1,?2,?3,?4,'user','active','free',NULL,?5,NULL)`).bind(username, email, hash, salt, now).run();
   return interaction(`✅ Account created.\nUsername: \`${username}\`\nEmail: \`${email}\`\nID: \`${result.meta.last_row_id}\`\nPlan: \`free\`\n\n🔐 Password was stored as a hash and cannot be retrieved later.`, true);
 }
 
 async function commandSetPassword(db, body) {
-  const username = option(body, "username");
-  const password = option(body, "password");
-
+  const username = option(body, "username"), password = option(body, "password");
   if (!username || !password) return interaction("Usage: /setpassword username password", true);
   if (password.length < 8) return interaction("❌ Password must be at least 8 characters.", true);
-
   const user = await db.prepare(`SELECT id FROM users WHERE lower(username)=lower(?1) LIMIT 1`).bind(username).first();
   if (!user) return interaction("❌ User not found.", true);
-
-  const salt = randomHex(32);
-  const hash = await hashPassword(password, salt);
-
+  const salt = randomHex(32), hash = await hashPassword(password, salt);
   await db.prepare(`UPDATE users SET password_hash=?1,password_salt=?2 WHERE id=?3`).bind(hash, salt, user.id).run();
-
   return interaction(`✅ Password reset completed for \`${username}\`.\nThe previous password cannot be recovered.`, true);
 }
 
-function option(body, name) {
-  const item = (body.data?.options || []).find(x => x.name === name);
-  return item == null ? "" : String(item.value ?? "").trim();
-}
-
-function generateKey() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "BLSX-FREE-";
-  for (let group = 0; group < 2; group++) {
-    if (group) result += "-";
-    for (let i = 0; i < 4; i++) result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
-
-function generateToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function hashPassword(password, salt) {
-  let digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + password));
-  const saltBytes = new TextEncoder().encode(salt);
-  for (let i = 0; i < 100000; i++) {
-    const buffer = new Uint8Array(saltBytes.length + digest.byteLength);
-    buffer.set(saltBytes);
-    buffer.set(new Uint8Array(digest), saltBytes.length);
-    digest = await crypto.subtle.digest("SHA-256", buffer);
-  }
-  return toHex(digest);
-}
-
-function randomHex(bytes) {
-  return toHex(crypto.getRandomValues(new Uint8Array(bytes)));
-}
-
-function hexToBytes(hex) {
-  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("invalid hex");
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-
-function toHex(data) {
-  return [...new Uint8Array(data)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-function formatDuration(ms) {
-  const totalMinutes = Math.max(0, Math.floor(Number(ms || 0) / 60000));
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h}h ${m}m`;
-}
-
-function formatDate(ms) {
-  const value = Number(ms || 0);
-  if (!value) return "-";
-  return new Date(value).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour12: false });
-}
-
-function interaction(content, ephemeral = true) {
-  return json({
-    type: 4,
-    data: {
-      content,
-      flags: ephemeral ? 64 : 0,
-    },
-  });
-}
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-  });
-}
+function option(body, name) { const item = (body.data?.options || []).find(x => x.name === name); return item == null ? "" : String(item.value ?? "").trim(); }
+function generateKey() { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = "BLSX-FREE-"; for (let group = 0; group < 2; group++) { if (group) result += "-"; for (let i = 0; i < 4; i++) result += chars[Math.floor(Math.random() * chars.length)]; } return result; }
+function generateToken() { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); return [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join(""); }
+async function hashPassword(password, salt) { let digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + password)); const saltBytes = new TextEncoder().encode(salt); for (let i = 0; i < 100000; i++) { const buffer = new Uint8Array(saltBytes.length + digest.byteLength); buffer.set(saltBytes); buffer.set(new Uint8Array(digest), saltBytes.length); digest = await crypto.subtle.digest("SHA-256", buffer); } return toHex(digest); }
+function randomHex(bytes) { return toHex(crypto.getRandomValues(new Uint8Array(bytes))); }
+function hexToBytes(hex) { if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("invalid hex"); const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16); return out; }
+function toHex(data) { return [...new Uint8Array(data)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+function formatDuration(ms) { const totalMinutes = Math.max(0, Math.floor(Number(ms || 0) / 60000)); return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`; }
+function formatDate(ms) { const value = Number(ms || 0); if (!value) return "-"; return new Date(value).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour12: false }); }
+function interaction(content, ephemeral = true) { return json({ type: 4, data: { content, flags: ephemeral ? 64 : 0 } }); }
+function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }); }
