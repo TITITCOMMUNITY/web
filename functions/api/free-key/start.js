@@ -23,17 +23,16 @@ export async function onRequestGet({ request, env }) {
     }
 
     const link = String(env.LINKVERTISE_URL || "").trim();
-    if (!link) {
-      return page("Server Error", "LINKVERTISE_URL belum dikonfigurasi.");
-    }
+    if (!link) return page("Server Error", "LINKVERTISE_URL belum dikonfigurasi.");
 
-    const response = Response.redirect(link, 302);
-    response.headers.append(
-      "Set-Cookie",
-      `${CLAIM_COOKIE}=${encodeURIComponent(claimToken)}; Max-Age=${Math.ceil(CLAIM_MS / 1000)}; Path=/api/free-key; Secure; HttpOnly; SameSite=Lax`
-    );
-    response.headers.set("Cache-Control", "no-store");
-    return response;
+    return new Response(null, {
+      status: 302,
+      headers: {
+        "Location": link,
+        "Set-Cookie": `${CLAIM_COOKIE}=${encodeURIComponent(claimToken)}; Max-Age=${Math.ceil(CLAIM_MS / 1000)}; Path=/api/free-key; Secure; HttpOnly; SameSite=Lax`,
+        "Cache-Control": "no-store"
+      }
+    });
   } catch (error) {
     console.error("FREE KEY START ERROR:", error);
     return page("Server Error", "Terjadi kesalahan pada server.");
