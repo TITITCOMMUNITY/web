@@ -1,20 +1,5 @@
-const $ = (id) => document.getElementById(id);
-
-async function loadStatus(){
-  try{
-    const r=await fetch('/api/growtopia/status',{cache:'no-store'}); const d=await r.json();
-    if(!d.success){$('online').textContent='Unavailable';$('status').textContent='⚪ Server status unavailable';$('status').className='gt-status off';return;}
-    $('online').textContent=Number(d.online).toLocaleString('en-US');
-    $('status').textContent=d.online>0?'🟢 Online':'🟠 Maintenance / Empty';
-    $('status').className='gt-status '+(d.online>0?'ok':'warn');
-    $('updated').textContent='Updated '+new Date(d.updated_at||Date.now()).toLocaleTimeString();
-  }catch{$('online').textContent='Unavailable';$('status').textContent='⚪ Request failed';$('status').className='gt-status off';}
-}
-async function searchItems(){
-  const q=$('itemQuery').value.trim(); if(q.length<2){$('results').innerHTML='<p class="gt-muted">Enter at least 2 characters.</p>';return;}
-  $('results').innerHTML='<p class="gt-muted">Searching…</p>';
-  try{const r=await fetch('/api/growtopia/items?q='+encodeURIComponent(q));const d=await r.json();if(!d.success||!d.results?.length){$('results').innerHTML='<p class="gt-muted">No results.</p>';return;}$('results').innerHTML=d.results.map(x=>`<div class="gt-item"><strong>${escapeHtml(x.title)}</strong><br><span class="gt-muted">${escapeHtml(x.snippet||'')}</span><br><a href="${x.url}" target="_blank" rel="noopener">Open Wiki →</a></div>`).join('');}catch{$('results').innerHTML='<p class="gt-muted">Search failed.</p>';}
-}
-function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-$('searchBtn').addEventListener('click',searchItems);$('itemQuery').addEventListener('keydown',e=>{if(e.key==='Enter')searchItems();});
-loadStatus();setInterval(loadStatus,15000);
+const $=id=>document.getElementById(id);
+async function loadStatus(){try{const d=await fetch('/api/growtopia/status',{cache:'no-store'}).then(r=>r.json());if(!d.success){$('online').textContent='Unavailable';$('status').textContent='⚪ Server status unavailable';return;}$('online').textContent=Number(d.online).toLocaleString('en-US');$('status').textContent=d.online>0?'🟢 Online':'🟠 Maintenance / Empty';$('updated').textContent='Updated '+new Date(d.updated_at||Date.now()).toLocaleTimeString();}catch{$('online').textContent='Unavailable';$('status').textContent='⚪ Request failed';}}
+async function searchItems(){const q=$('itemQuery').value.trim();if(q.length<2){$('results').innerHTML='<p class="gt-muted">Enter at least 2 characters.</p>';return;}$('results').innerHTML='<p class="gt-muted">Searching…</p>';try{const d=await fetch('/api/growtopia/items?q='+encodeURIComponent(q)).then(r=>r.json());if(!d.success||!d.results?.length){$('results').innerHTML='<p class="gt-muted">No results.</p>';return;}$('results').innerHTML=d.results.map(x=>`<div class="gt-item" style="display:flex;gap:12px;align-items:flex-start">${x.image?`<img src="${esc(x.image)}" style="width:56px;height:56px;object-fit:contain;border-radius:8px;background:#080812" alt="">`:''}<div><strong>${esc(x.title)}</strong><small class="gt-muted">Item ID/Page ID: ${x.page_id??'-'}</small><p class="gt-muted">${esc(x.description||'No description available.')}</p></div></div>`).join('');}catch{$('results').innerHTML='<p class="gt-muted">Search failed.</p>';}}
+function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+$('searchBtn').addEventListener('click',searchItems);$('itemQuery').addEventListener('keydown',e=>{if(e.key==='Enter')searchItems();});loadStatus();setInterval(loadStatus,15000);
