@@ -7,25 +7,16 @@ export async function onRequestGet({ request, env }) {
     try {
         const user = await getUser(request, env);
         if (!user) return json({ success: false, error: "Unauthorized" }, 401);
-
-        if (String(user.role).toLowerCase() === "admin") {
-            return json({ success: true, required: false, reason: "admin" });
-        }
-
-        if (isPremium(user)) {
-            return json({ success: true, required: false, reason: "premium" });
-        }
+        if (String(user.role).toLowerCase() === "admin") return json({ success: true, required: false, reason: "admin" });
+        if (isPremium(user)) return json({ success: true, required: false, reason: "premium" });
 
         const key = await getLatestKey(env.DB, user.id);
-        if (!key) {
-            return json({ success: true, required: true, has_key: false, key: null });
-        }
+        if (!key) return json({ success: true, required: true, has_key: false, key: null });
 
         const now = Date.now();
         const expiry = Number(key.expires_at || 0);
         const rewardedHours = Math.max(0, Number(key.rewarded_hours || 0));
         const active = expiry > now;
-        const status = active ? "active" : "expired";
 
         return json({
             success: true,
@@ -37,7 +28,7 @@ export async function onRequestGet({ request, env }) {
                 duration_days: key.duration_days,
                 rewarded_hours: rewardedHours,
                 remaining_reward_hours: Math.max(0, MAX_REWARDED_HOURS - rewardedHours),
-                status,
+                status: active ? "active" : "expired",
                 created_at: key.created_at,
                 activated_at: key.activated_at,
                 expires_at: key.expires_at,
@@ -54,20 +45,12 @@ export async function onRequestPost({ request, env }) {
     try {
         const user = await getUser(request, env);
         if (!user) return json({ success: false, error: "Unauthorized" }, 401);
-
-        if (String(user.role).toLowerCase() === "admin") {
-            return json({ success: false, error: "Admin does not need Free Key" }, 403);
-        }
-
-        if (isPremium(user)) {
-            return json({ success: false, error: "Premium users do not need Free Key" }, 403);
-        }
+        if (String(user.role).toLowerCase() === "admin") return json({ success: false, error: "Admin does not need Free Key" }, 403);
+        if (isPremium(user)) return json({ success: false, error: "Premium users do not need Free Key" }, 403);
 
         const now = Date.now();
         let key = await getLatestKey(env.DB, user.id);
 
-        // The unique index is the final guard against duplicate keys. INSERT OR IGNORE
-        // also makes concurrent Get Key clicks safe.
         if (!key) {
             const newKey = generateKey();
             await env.DB.prepare(`
@@ -114,32 +97,26 @@ export async function onRequestPost({ request, env }) {
                     (user_id,key_id,claim_token,status,created_at,expires_at)
                 VALUES (?1,?2,?3,'pending',?4,?5)
             `).bind(user.id, key.id, claimToken, now, claimExpires).run();
-
-            if (!inserted.success) {
-                return json({ success: false, error: "CLAIM_CREATE_FAILED" }, 500);
-            }
+            if (!inserted.success) return json({ success: false, error: "CLAIM_CREATE_FAILED" }, 500);
             claim = { claim_token: claimToken, expires_at: claimExpires };
         }
 
         const linkvertise = String(env.LINKVERTISE_URL || "").trim();
         if (!linkvertise) {
-            if (claim.id) {
-                await env.DB.prepare(`DELETE FROM free_key_claims WHERE id=?1 AND status='pending'`).bind(claim.id).run();
-            }
+            if (claim.id) await env.DB.prepare(`DELETE FROM free_key_claims WHERE id=?1 AND status='pending'`).bind(claim.id).run();
             return json({ success: false, error: "LINKVERTISE_URL is not configured" }, 500);
         }
 
-        // LINKVERTISE_URL must be the public Linkvertise URL. Its Target URL must be
-        // /api/free-key/complete on this site so Linkvertise appends ?hash=... after completion.
         const startUrl = buildStartUrl(request, claim.claim_token);
-
         return json({
             success: true,
             requires_linkvertise: true,
             claim_pending: true,
             link: startUrl,
             start_url: startUrl,
-            linkvertise_url: linkvertise,
+            // Do not expose the publisher URL to the client. The browser must visit
+            // /start first so the claim cookie is set before the Linkvertise redirect.
+            linkvertise_url: null,
             reward_hours: 6,
             max_hours: MAX_REWARDED_HOURS,
             remaining_reward_hours: Math.max(0, MAX_REWARDED_HOURS - rewardedHours),
@@ -175,7 +152,6 @@ function isPremium(user) {
 async function getUser(request, env) {
     const token = getCookie(request.headers.get("Cookie") || "", "bilsx_session");
     if (!token) return null;
-
     try {
         const tokenHash = await sha256(token);
         return env.DB.prepare(`
@@ -185,9 +161,7 @@ async function getUser(request, env) {
             WHERE s.token_hash=?1 AND s.expires_at>?2 AND u.status='active'
             LIMIT 1
         `).bind(tokenHash, Date.now()).first();
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 }
 
 function getCookie(header, name) {
@@ -225,9 +199,6 @@ function generateKey() {
 function json(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
-        headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "no-store"
-        }
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
     });
 }
