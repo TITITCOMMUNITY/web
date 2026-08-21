@@ -15,13 +15,13 @@
     <a class="top-login" href="/login.html">Login</a>
   </div>
 </header>
-
 <div class="tools-shell">
   <aside class="tools-sidebar">
     <div class="sidebar-label">GROWTOPIA TOOLKIT</div>
     <nav id="toolNav">
       <a href="#home" data-tool="home">⌂ <span>Overview</span></a>
       <a href="#items" data-tool="items">◈ <span>Item Browser</span></a>
+      <a href="#miner" data-tool="miner">⛏ <span>Data Miner</span></a>
       <a href="#price" data-tool="price">◉ <span>Price Checker</span></a>
       <a href="#dq" data-tool="dq">◇ <span>Daily Quest</span></a>
       <a href="#level" data-tool="level">✦ <span>Level Calculator</span></a>
@@ -29,47 +29,36 @@
       <a href="#status" data-tool="status">● <span>Server Monitor</span></a>
       <a href="#planner" data-tool="planner">▦ <span>World Planner</span></a>
     </nav>
-    <div class="sidebar-bottom">
-      <div class="side-live"><i></i><span id="sideOnline">Checking server...</span></div>
-      <small>BILSX © 2026</small>
-    </div>
+    <div class="sidebar-bottom"><div class="side-live"><i></i><span id="sideOnline">Checking server...</span></div><small>BILSX © 2026</small></div>
   </aside>
-
   <main class="tools-content">
     <section class="tool-page" data-page="home">
-      <div class="tool-hero">
-        <div>
-          <div class="eyebrow">BILSX / GROWTOPIA TOOLKIT</div>
-          <h1>Everything you need.<br><b>One toolkit.</b></h1>
-          <p>Utility tools for Growtopia players — item data, market estimates, Daily Quest cost, progression and server monitoring.</p>
-        </div>
-        <div class="hero-online"><span>GROWTOPIA ONLINE</span><strong id="heroOnline">—</strong><small id="heroStatus">Checking live status...</small></div>
-      </div>
+      <div class="tool-hero"><div><div class="eyebrow">BILSX / GROWTOPIA TOOLKIT</div><h1>Everything you need.<br><b>One toolkit.</b></h1><p>Utility tools for Growtopia players — live item data, official-source mining, market estimates, Daily Quest cost, progression and server monitoring.</p></div><div class="hero-online"><span>GROWTOPIA ONLINE</span><strong id="heroOnline">—</strong><small id="heroStatus">Checking live status...</small></div></div>
       <div class="tool-cards">
-        <a class="big-tool-card" href="#items"><span>◈</span><b>Item Browser</b><small>Search item data, image and description.</small></a>
+        <a class="big-tool-card" href="#items"><span>◈</span><b>Item Browser</b><small>Search item data, image and downloadable artwork.</small></a>
+        <a class="big-tool-card" href="#miner"><span>⛏</span><b>Data Miner</b><small>Refresh official Growtopia website, detail and shop data.</small></a>
         <a class="big-tool-card" href="#price"><span>◉</span><b>Price Checker</b><small>Estimate community market prices.</small></a>
         <a class="big-tool-card" href="#dq"><span>◇</span><b>Daily Quest</b><small>See today's quest and completion estimate.</small></a>
         <a class="big-tool-card" href="#level"><span>✦</span><b>Level Calculator</b><small>XP, Ghost Jars, packs and estimated cost.</small></a>
-        <a class="big-tool-card" href="#profit"><span>▣</span><b>Pack Profit</b><small>Calculate revenue, profit and ROI.</small></a>
         <a class="big-tool-card" href="#status"><span>●</span><b>Server Monitor</b><small>Live player count and service status.</small></a>
       </div>
-      <div class="notice"><strong>Privacy first.</strong><span>Tools run through BILSX APIs where available. Market values are estimates, not official Growtopia prices.</span></div>
+      <div class="notice"><strong>Official data first.</strong><span>BILSX refreshes public Growtopia sources when available. Community prices remain estimates.</span></div>
     </section>
 
     <section class="tool-page" data-page="items">
-      <div class="page-heading"><div><div class="eyebrow">DATABASE</div><h2>Item Browser</h2><p>Search Growtopia item information without leaving BILSX.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="tool-panel">
-        <div class="search-large"><input id="itemQuery" placeholder="Search item name..." autocomplete="off"><button class="primary" id="itemSearch">Search</button></div>
-        <div id="itemResults" class="results-list"><div class="empty-state">Type an item name to begin.</div></div>
-      </div>
+      <div class="page-heading"><div><div class="eyebrow">DATABASE</div><h2>Item Browser</h2><p>Search item data and download available artwork through BILSX.</p></div><a href="#home" class="back">← Overview</a></div>
+      <div class="tool-panel"><div class="search-large"><input id="itemQuery" placeholder="Search item name..." autocomplete="off"><button class="primary" id="itemSearch">Search</button></div><div id="itemResults" class="results-list"><div class="empty-state">Type an item name to begin.</div></div></div>
+    </section>
+
+    <section class="tool-page" data-page="miner">
+      <div class="page-heading"><div><div class="eyebrow">OFFICIAL DATA</div><h2>Growtopia Data Miner</h2><p>Reads public information from Growtopia's official website and official shop. The miner never modifies their servers.</p></div><a href="#home" class="back">← Overview</a></div>
+      <div class="tool-panel"><div class="panel-toolbar"><span id="minerUpdated">Not synced</span><div><button class="secondary" id="minerRefresh">Refresh</button><button class="primary" id="minerForce">Force Refresh</button></div></div><div id="minerResult" class="result-area"><div class="empty-state">Press Refresh to mine current public data.</div></div></div>
+      <div class="tool-panel"><h3>What BILSX mines</h3><div class="result-grid"><div><small>DETAIL</small><strong>Online count</strong></div><div><small>OFFICIAL SITE</small><strong>Links & images</strong></div><div><small>OFFICIAL SHOP</small><strong>Products & images</strong></div><div><small>NEW DATA</small><strong>Diff detection</strong></div></div><p class="tool-note">A source can change its HTML at any time. BILSX records what it can reliably parse and reports source errors instead of inventing data.</p></div>
     </section>
 
     <section class="tool-page" data-page="price">
       <div class="page-heading"><div><div class="eyebrow">MARKET</div><h2>Price Checker</h2><p>Community market estimate through the BILSX price engine.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="tool-panel narrow-panel">
-        <div class="search-large"><input id="priceItem" placeholder="e.g. Magplant 5000"><button class="primary" id="priceSearch">Check Price</button></div>
-        <div id="priceResult" class="result-area"><div class="empty-state">Enter an item to check its estimated price.</div></div>
-      </div>
+      <div class="tool-panel narrow-panel"><div class="search-large"><input id="priceItem" placeholder="e.g. Magplant 5000"><button class="primary" id="priceSearch">Check Price</button></div><div id="priceResult" class="result-area"><div class="empty-state">Enter an item to check its estimated price.</div></div></div>
     </section>
 
     <section class="tool-page" data-page="dq">
@@ -79,46 +68,22 @@
 
     <section class="tool-page" data-page="level">
       <div class="page-heading"><div><div class="eyebrow">PROGRESSION</div><h2>Level Calculator</h2><p>Estimate XP, Ghost Jars, packs and WL cost.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="split-panel">
-        <div class="tool-panel form-panel">
-          <label>Current Level<input id="currentLevel" type="number" min="0" max="124" value="1"></label>
-          <label>XP at current level<input id="currentXp" type="number" min="0" value="0"></label>
-          <label>Target Level<input id="targetLevel" type="number" min="1" max="125" value="20"></label>
-          <label>XP per Ghost Jar<input id="ghostXp" type="number" min="1" value="230"></label>
-          <label>Jars per Pack<input id="jarPack" type="number" min="1" value="200"></label>
-          <label>Price / Pack (WL)<input id="jarPrice" type="number" min="0" value="0"></label>
-          <button class="primary full" id="calcLevel">Calculate</button>
-        </div>
-        <div id="levelResult" class="tool-panel result-area"><div class="empty-state">Enter your level and calculate.</div></div>
-      </div>
+      <div class="split-panel"><div class="tool-panel form-panel"><label>Current Level<input id="currentLevel" type="number" min="0" max="124" value="1"></label><label>XP at current level<input id="currentXp" type="number" min="0" value="0"></label><label>Target Level<input id="targetLevel" type="number" min="1" max="125" value="20"></label><label>XP per Ghost Jar<input id="ghostXp" type="number" min="1" value="230"></label><label>Jars per Pack<input id="jarPack" type="number" min="1" value="200"></label><label>Price / Pack (WL)<input id="jarPrice" type="number" min="0" value="0"></label><button class="primary full" id="calcLevel">Calculate</button></div><div id="levelResult" class="tool-panel result-area"><div class="empty-state">Enter your level and calculate.</div></div></div>
     </section>
 
     <section class="tool-page" data-page="profit">
       <div class="page-heading"><div><div class="eyebrow">ECONOMY</div><h2>Pack Profit</h2><p>Model pack cost, revenue, profit and ROI.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="split-panel">
-        <div class="tool-panel form-panel">
-          <label>Pack Count<input id="packCount" type="number" min="1" value="1"></label>
-          <label>Buy Price / Pack (WL)<input id="packCost" type="number" min="0" value="0"></label>
-          <button class="secondary full" id="addPackItem">+ Add Item</button>
-          <button class="primary full" id="calcPack">Calculate Profit</button>
-        </div>
-        <div class="tool-panel"><div id="packRows" class="pack-editor"></div><div id="packResult" class="result-area"><div class="empty-state">Add item prices to calculate profit.</div></div></div>
-      </div>
+      <div class="split-panel"><div class="tool-panel form-panel"><label>Pack Count<input id="packCount" type="number" min="1" value="1"></label><label>Buy Price / Pack (WL)<input id="packCost" type="number" min="0" value="0"></label><button class="secondary full" id="addPackItem">+ Add Item</button><button class="primary full" id="calcPack">Calculate Profit</button></div><div class="tool-panel"><div id="packRows" class="pack-editor"></div><div id="packResult" class="result-area"><div class="empty-state">Add item prices to calculate profit.</div></div></div></div>
     </section>
 
     <section class="tool-page" data-page="status">
       <div class="page-heading"><div><div class="eyebrow">LIVE DATA</div><h2>Server Monitor</h2><p>Live player count from the Growtopia public detail endpoint.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="metrics-large">
-        <div class="live-metric"><small>PLAYERS ONLINE</small><strong id="statusOnline">—</strong><span id="statusLabel">Checking...</span></div>
-        <div class="live-metric"><small>SOURCE</small><strong>Growtopia</strong><span>Public detail endpoint</span></div>
-        <div class="live-metric"><small>LAST UPDATE</small><strong id="statusTime">—</strong><span>Auto refresh</span></div>
-      </div>
+      <div class="metrics-large"><div class="live-metric"><small>PLAYERS ONLINE</small><strong id="statusOnline">—</strong><span id="statusLabel">Checking...</span></div><div class="live-metric"><small>SOURCE</small><strong>Growtopia</strong><span>Public detail endpoint</span></div><div class="live-metric"><small>LAST UPDATE</small><strong id="statusTime">—</strong><span>Auto refresh</span></div></div>
       <div class="tool-panel"><h3>Service status</h3><div id="statusDetail" class="status-detail">Checking...</div></div>
     </section>
 
     <section class="tool-page" data-page="planner">
-      <div class="page-heading"><div><div class="eyebrow">PLANNING</div><h2>World Planner</h2><p>A lightweight grid for sketching world layouts before building.</p></div><a href="#home" class="back">← Overview</a></div>
-      <div class="tool-panel"><div class="planner-toolbar"><button class="secondary" id="clearPlanner">Clear</button><span>Click cells to toggle blocks.</span></div><div id="plannerGrid" class="planner-grid"></div></div>
+      <div class="page-heading"><div><div class="eyebrow">PLANNING</div><h2>World Planner</h2><p>A lightweight grid for sketching world layouts before building.</p></div><a href="#home" class="back">← Overview</a></div><div class="tool-panel"><div class="planner-toolbar"><button class="secondary" id="clearPlanner">Clear</button><span>Click cells to toggle blocks.</span></div><div id="plannerGrid" class="planner-grid"></div></div>
     </section>
   </main>
 </div>
