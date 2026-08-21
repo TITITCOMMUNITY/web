@@ -27,18 +27,30 @@ async function searchItems() {
   const q = $('itemQuery')?.value.trim();
   const box = $('itemResults');
   if (!q || q.length < 2) { box.innerHTML = '<div class="empty-state">Enter at least 2 characters.</div>'; return; }
-  box.innerHTML = '<div class="loading-state">Searching item database...</div>';
+  box.innerHTML = '<div class="loading-state">Searching decoded items.dat...</div>';
   try {
     const d = await jsonFetch(`/api/growtopia/items?q=${encodeURIComponent(q)}`);
-    if (!d.success || !d.results?.length) { box.innerHTML = '<div class="empty-state">No items found.</div>'; return; }
-    box.innerHTML = d.results.map(x => `<article class="item-card">${x.image ? `<img src="${escAttr(x.image)}" alt="${escAttr(x.title)}">` : '<div class="item-placeholder">◈</div>'}<div><h3>${esc(x.title)}</h3><small>ID/Page: ${esc(x.page_id ?? '-')}</small><p>${esc(x.description || 'No description available.')}</p><div class="item-actions">${x.source_url ? `<a class="secondary" href="${escAttr(x.source_url)}" target="_blank" rel="noopener">Wiki</a>` : ''}${x.download_url ? `<a class="primary" href="${escAttr(x.download_url)}" download>Download Image</a>` : ''}</div></div></article>`).join('');
+    if (!d.success || !d.results?.length) { box.innerHTML = '<div class="empty-state">No items found in the decoded dataset.</div>'; return; }
+    box.innerHTML = `<div class="tool-note">Source: <b>${esc(d.source || 'items.dat')}</b> · Version: <b>${esc(d.version || 'latest')}</b> · ${nf(d.results.length)} matches</div>` + d.results.map(x => `
+      <article class="item-card">
+        ${x.image ? `<img loading="lazy" src="${escAttr(x.image)}" alt="${escAttr(x.title)}">` : '<div class="item-placeholder">◈</div>'}
+        <div>
+          <h3>${esc(x.title)}</h3>
+          <small>ID: ${esc(x.id ?? '-')} · Type: ${esc(x.type ?? '-')} · File: ${esc(x.file_name || '-')}</small>
+          <p>${esc(x.description || 'No description available.')}</p>
+          <div class="item-actions">
+            ${x.source_url ? `<a class="secondary" href="${escAttr(x.source_url)}" target="_blank" rel="noopener">Wiki</a>` : ''}
+            ${x.download_url ? `<a class="primary" href="${escAttr(x.download_url)}" download>Download Image</a>` : '<span class="tool-note">No Wiki artwork found</span>'}
+          </div>
+        </div>
+      </article>`).join('');
   } catch (e) { box.innerHTML = `<div class="error-state">Item API unavailable: ${esc(e.message)}</div>`; }
 }
 
 async function loadMiner(force) {
   const box = $('minerResult');
   if (!box) return;
-  box.innerHTML = '<div class="loading-state">Mining official public sources...</div>';
+  box.innerHTML = '<div class="loading-state">Mining official sources and refreshing decoded items.dat dataset...</div>';
   try {
     const d = await jsonFetch('/api/growtopia/miner' + (force ? '?refresh=1' : ''));
     $('minerUpdated').textContent = `Synced ${new Date(d.generated_at || Date.now()).toLocaleString()}`;
@@ -46,16 +58,37 @@ async function loadMiner(force) {
   } catch (e) { box.innerHTML = `<div class="error-state">Miner unavailable: ${esc(e.message)}</div>`; $('minerUpdated').textContent = 'Sync failed'; }
 }
 function renderMiner(d) {
-  const s=d.sources||{}, detail=s.detail||{}, site=s.website||{}, shop=s.shop||{}, errors=d.errors||[];
-  const products=Array.isArray(shop.products)?shop.products:[], images=Array.isArray(site.images)?site.images:[], links=Array.isArray(site.links)?site.links:[], forums=Array.isArray(site.forums)?site.forums:[], social=Array.isArray(site.official_social)?site.official_social:[];
-  return `<div class="result-title">Official source snapshot</div><div class="result-grid"><div><small>PLAYERS</small><strong>${esc(detail.online_user??'—')}</strong></div><div><small>OFFICIAL LINKS</small><strong>${nf(links.length)}</strong></div><div><small>OFFICIAL IMAGES</small><strong>${nf(images.length)}</strong></div><div><small>SHOP PRODUCTS</small><strong>${nf(products.length)}</strong></div></div><div class="miner-columns"><div><h3>Official website</h3>${site.title?`<p>${esc(site.title)}</p>`:''}${forums.slice(0,5).map(x=>`<a class="miner-link" href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join('')}${social.slice(0,5).map(x=>`<a class="miner-link" href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join('')}</div><div><h3>Official shop / new products</h3>${products.length?products.slice(0,20).map(x=>`<div class="miner-product">${esc(x.name)}</div>`).join(''):'<p>No product headings could be parsed from the current shop markup.</p>'}</div><div><h3>Source images</h3><div class="miner-images">${images.slice(0,18).map(u=>`<a href="${escAttr('/api/growtopia/image?url='+encodeURIComponent(u))}" download title="Download image"><img loading="lazy" src="${escAttr(u)}" alt=""></a>`).join('')||'<p>No images parsed.</p>'}</div></div></div>${errors.length?`<div class="error-state">${errors.map(x=>`<div>${esc(x.source)}: ${esc(x.error)}</div>`).join('')}</div>`:''}<p class="tool-note">This is a public-source snapshot. HTML structures can change; BILSX reports parse failures rather than inventing new item/news data.</p>`;
+  const s=d.sources||{}, detail=s.detail||{}, site=s.website||{}, shop=s.shop||{}, forums=s.forums||{}, dataset=s.dataset||{}, errors=d.errors||[];
+  const products=Array.isArray(shop.products)?shop.products:[], images=Array.isArray(site.images)?site.images:[], links=Array.isArray(site.links)?site.links:[], news=Array.isArray(forums.news)?forums.news:[], added=Array.isArray(dataset.changes?.added)?dataset.changes.added:[], changed=Array.isArray(dataset.changes?.changed)?dataset.changes.changed:[];
+  const stats=dataset.stats||{};
+  return `<div class="result-title">BILSX live mining snapshot</div>
+    <div class="result-grid">
+      <div><small>GROWTOPIA ONLINE</small><strong>${esc(detail.online_user??'—')}</strong></div>
+      <div><small>ITEM DATABASE</small><strong>${nf(stats.item_count||0)}</strong></div>
+      <div><small>DATA VERSION</small><strong>${esc(dataset.version||'—')}</strong></div>
+      <div><small>LAST ITEM ID</small><strong>${nf(stats.last_id||0)}</strong></div>
+    </div>
+    <div class="miner-columns">
+      <div><h3>New / changed items</h3>
+        <p class="tool-note">Compared automatically with the previous decoded items.dat version.</p>
+        ${added.slice(0,15).map(x=>`<div class="miner-product"><b>NEW</b> #${esc(x.id)} · ${esc(x.name)}</div>`).join('') || '<p>No new item detected between the latest two available datasets.</p>'}
+        ${changed.slice(0,10).map(x=>`<div class="miner-product"><b>CHANGED</b> #${esc(x.after?.id)} · ${esc(x.before?.name)} → ${esc(x.after?.name)}</div>`).join('')}
+      </div>
+      <div><h3>Official / community signals</h3>
+        ${news.slice(0,12).map(x=>`<a class="miner-link" href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a>`).join('') || '<p>No forum news links could be parsed from the current markup.</p>'}
+        <p class="tool-note">Official website links parsed: ${nf(links.length)} · Shop headings parsed: ${nf(products.length)}</p>
+      </div>
+      <div><h3>Official source images</h3><div class="miner-images">${images.slice(0,18).map(u=>`<a href="${escAttr('/api/growtopia/image?url='+encodeURIComponent(u))}" download title="Download image"><img loading="lazy" src="${escAttr(u)}" alt=""></a>`).join('')||'<p>No images parsed.</p>'}</div></div>
+    </div>
+    ${errors.length?`<div class="error-state">${errors.map(x=>`<div>${esc(x.source)}: ${esc(x.error)}</div>`).join('')}</div>`:''}
+    <p class="tool-note">Dataset source: decoded <code>items.dat</code> from the public Growtopia data archive. Growtopia's public website does not expose a documented items.dat API, so BILSX does not pretend that the dataset came directly from the official website.</p>`;
 }
 
-async function checkPrice() { const item=$('priceItem')?.value.trim(),box=$('priceResult'); if(!item)return; box.innerHTML='<div class="loading-state">Checking market estimate...</div>'; try{const d=await jsonFetch(`/api/growtopia/price?item=${encodeURIComponent(item)}`); if(d.configured===false||d.error==='PRICE_SOURCE_NOT_CONFIGURED'){box.innerHTML='<div class="empty-state"><strong>Price source is not configured yet.</strong><br><small>The BILSX price engine is ready, but no live community price source has been connected.</small></div>';return;} box.innerHTML=renderPrice(d,item);}catch(e){box.innerHTML=`<div class="error-state">Price engine unavailable: ${esc(e.message)}</div>`;}}
+async function checkPrice() { const item=$('priceItem')?.value.trim(),box=$('priceResult'); if(!item)return; box.innerHTML='<div class="loading-state">Checking market estimate...</div>'; try{const d=await jsonFetch(`/api/growtopia/price?item=${encodeURIComponent(item)}`); if(d.configured===false||d.error==='PRICE_SOURCE_NOT_CONFIGURED'){box.innerHTML='<div class="empty-state"><strong>Price source is not configured yet.</strong><br><small>No live community market source is connected.</small></div>';return;} box.innerHTML=renderPrice(d,item);}catch(e){box.innerHTML=`<div class="error-state">Price engine unavailable: ${esc(e.message)}</div>`;}}
 function renderPrice(d,item){const buy=d.buy??d.buy_price??d.buyPrice??d.data?.buy??null,sell=d.sell??d.sell_price??d.sellPrice??d.data?.sell??null,estimate=d.estimate??d.average??d.price??d.data?.price??null,confidence=d.confidence??d.data?.confidence??'Unknown',updated=d.updated_at??d.updatedAt??d.data?.updated_at??null;return `<div class="price-head"><div><small>ITEM</small><h3>${esc(d.item_name||d.name||item)}</h3></div><span class="confidence">${esc(confidence)}</span></div><div class="price-grid"><div><small>BUY</small><strong>${formatPrice(buy)}</strong></div><div><small>SELL</small><strong>${formatPrice(sell)}</strong></div><div><small>ESTIMATE</small><strong>${formatPrice(estimate)}</strong></div></div><p class="tool-note">Market values are community estimates and may change quickly.${updated?` Updated ${esc(updated)}.`:''}</p>`;}
 function formatPrice(v){if(v==null||v==='')return'—';if(typeof v==='object'){const a=v.min??v.low,b=v.max??v.high;if(a!=null&&b!=null)return`${nf(a)}–${nf(b)}`;}return esc(typeof v==='number'?nf(v):v);}
 
-async function loadDQ(){const box=$('dqResult');if(!box)return;box.innerHTML='<div class="loading-state">Loading Daily Quest...</div>';try{const d=await jsonFetch('/api/growtopia/dq');if(d.configured===false||d.error==='DAILY_QUEST_SOURCE_NOT_CONFIGURED'){box.innerHTML='<div class="empty-state"><strong>Daily Quest source is not configured yet.</strong><br><small>The BILSX UI and API adapter are ready; connect a reliable quest source to show live data.</small></div>';$('dqUpdated').textContent='Source not configured';return;}$('dqUpdated').textContent=`Updated ${new Date().toLocaleTimeString()}`;box.innerHTML=renderDQ(d);}catch(e){box.innerHTML=`<div class="error-state">Daily Quest unavailable: ${esc(e.message)}</div>`;}}
+async function loadDQ(){const box=$('dqResult');if(!box)return;box.innerHTML='<div class="loading-state">Loading Daily Quest...</div>';try{const d=await jsonFetch('/api/growtopia/dq');if(d.configured===false||d.error==='DAILY_QUEST_SOURCE_NOT_CONFIGURED'){box.innerHTML='<div class="empty-state"><strong>Daily Quest source is not configured yet.</strong><br><small>The current repository does not contain a validated live quest source, so BILSX will not invent today's quest.</small></div>';$('dqUpdated').textContent='Source not configured';return;}$('dqUpdated').textContent=`Updated ${new Date().toLocaleTimeString()}`;box.innerHTML=renderDQ(d);}catch(e){box.innerHTML=`<div class="error-state">Daily Quest unavailable: ${esc(e.message)}</div>`;}}
 function renderDQ(d){const title=d.title||d.quest||d.name||d.data?.title||'Daily Quest',items=d.items||d.requirements||d.data?.items||[],total=d.total_cost??d.estimated_cost??d.data?.total_cost??null;if(!Array.isArray(items)||!items.length)return`<div class="empty-state"><h3>${esc(title)}</h3><p>${esc(d.description||d.message||'Quest data returned without item requirements.')}</p></div>`;return`<div class="dq-head"><div><small>QUEST</small><h3>${esc(title)}</h3></div>${total!=null?`<div class="dq-cost"><small>EST. COST</small><strong>${esc(formatPrice(total))}</strong></div>`:''}</div><div class="dq-list">${items.map(x=>`<div><span>${esc(x.name||x.item||x.title||'Item')}</span><strong>×${esc(x.quantity??x.amount??0)}</strong>${x.price!=null?`<small>${esc(formatPrice(x.price))}</small>`:''}</div>`).join('')}</div>`;}
 
 async function loadStatus(){try{const d=await jsonFetch('/api/growtopia/status'),online=Number(d.online??d.online_user??d.playerCount??0),available=d.success!==false,label=!available?'Unavailable':online>0?'Online':'Maintenance / Offline',cls=!available?'offline':online>0?'online':'maintenance';if($('heroOnline'))$('heroOnline').textContent=available?nf(online):'—';if($('heroStatus'))$('heroStatus').textContent=label;if($('statusOnline'))$('statusOnline').textContent=available?nf(online):'—';if($('statusLabel')){$('statusLabel').textContent=label;$('statusLabel').className=cls;}if($('statusTime'))$('statusTime').textContent=new Date().toLocaleTimeString();if($('sideOnline'))$('sideOnline').textContent=available?`${nf(online)} players`:'Status unavailable';if($('statusDetail'))$('statusDetail').innerHTML=`<span class="status-dot ${cls}"></span><strong>${esc(label)}</strong><span>Source: growtopiagame.com/detail via BILSX API</span>`;}catch(e){['heroOnline','statusOnline'].forEach(id=>{if($(id))$(id).textContent='—';});if($('heroStatus'))$('heroStatus').textContent='Status unavailable';if($('statusLabel'))$('statusLabel').textContent='Unavailable';if($('sideOnline'))$('sideOnline').textContent='Status unavailable';if($('statusDetail'))$('statusDetail').innerHTML=`<span class="status-dot offline"></span><strong>Unavailable</strong><span>${esc(e.message)}</span>`;}}
