@@ -1,7 +1,7 @@
 const SOURCES = {
   detail: "https://growtopiagame.com/detail",
   website: "https://growtopiagame.com/",
-  shop: "https://xsolla.growtopiagame.com/",
+  shop: "https://xsolla.growtopia.com/",
   forums: "https://www.growtopiagame.com/forums"
 };
 
@@ -10,13 +10,28 @@ export async function onRequestGet({ request }) {
   const refresh = url.searchParams.get("refresh") === "1";
   const results = {};
   const errors = [];
-  await Promise.all(Object.entries(SOURCES).map(([name,target]) => fetchSource(name,target,refresh).then(x=>results[name]=x).catch(e=>errors.push({source:name,error:String(e?.message||e)}))));
+
+  await Promise.all([
+    ...Object.entries(SOURCES).map(([name,target]) => fetchSource(name,target,refresh).then(x=>results[name]=x).catch(e=>errors.push({source:name,error:String(e?.message||e)}))),
+    fetchDataset(request, refresh).then(x=>results.dataset=x).catch(e=>errors.push({source:"dataset",error:String(e?.message||e)}))
+  ]);
+
   const data={success:Object.keys(results).length>0,generated_at:new Date().toISOString(),sources:results,errors};
   return json(data,data.success?200:502);
 }
 
+async function fetchDataset(request, refresh) {
+  const target = new URL("/api/growtopia/dataset", request.url);
+  target.searchParams.set("diff","1");
+  target.searchParams.set("limit","100");
+  if (refresh) target.searchParams.set("refresh","1");
+  const response = await fetch(target, { cf: refresh ? {cacheTtl:0,cacheEverything:false} : {cacheTtl:600,cacheEverything:true} });
+  if (!response.ok) throw new Error(`DATASET_HTTP_${response.status}`);
+  return response.json();
+}
+
 async function fetchSource(name,target,refresh){
-  const response=await fetch(target,{headers:{"User-Agent":"BILSX-Growtopia-Miner/1.1 (+https://web-d8a.pages.dev)","Accept":"text/html,application/json;q=0.9,*/*;q=0.8"},cf:refresh?{cacheTtl:0,cacheEverything:false}:{cacheTtl:300,cacheEverything:true}});
+  const response=await fetch(target,{headers:{"User-Agent":"BILSX-Growtopia-Miner/2.0 (+https://web-d8a.pages.dev)","Accept":"text/html,application/json;q=0.9,*/*;q=0.8"},cf:refresh?{cacheTtl:0,cacheEverything:false}:{cacheTtl:300,cacheEverything:true}});
   if(!response.ok)throw new Error(`HTTP_${response.status}`);
   const text=await response.text();
   if(name==='detail')return parseDetail(text);
@@ -33,4 +48,4 @@ function extractTitle(html){const m=html.match(/<title[^>]*>([\s\S]*?)<\/title>/
 function cleanText(v){return String(v||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim();}
 function absoluteUrl(value,base){try{return new URL(value,base).href;}catch(_){return null;}}
 function unique(arr){return[...new Set(arr)];}
-function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"public, max-age=300, stale-while-revalidate=600"}});}
+function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"public, max-age=300, stale-while-revalidate=900"}});}
