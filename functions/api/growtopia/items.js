@@ -1,5 +1,4 @@
 const WIKI_API = "https://growtopia.fandom.com/api.php";
-const DATA_API = "https://web-d8a.pages.dev/api/growtopia/dataset";
 
 export async function onRequestGet({ request }) {
   const url = new URL(request.url);
@@ -8,7 +7,7 @@ export async function onRequestGet({ request }) {
   if (q.length < 2 || q.length > 80) return json({success:false,error:"QUERY_TOO_SHORT_OR_LONG"},400);
 
   try {
-    const datasetUrl = new URL(DATA_API);
+    const datasetUrl = new URL("/api/growtopia/dataset", request.url);
     datasetUrl.searchParams.set("q", q);
     datasetUrl.searchParams.set("version", version);
     datasetUrl.searchParams.set("limit", "40");
