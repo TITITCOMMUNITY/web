@@ -1,0 +1,7 @@
+# Canonical tool route
+/tools /tools.html 200
+/tools/ /tools.html 200
+
+# Legacy / alternate routes
+/growtools /tools 301
+/growtools/ /tools 301
