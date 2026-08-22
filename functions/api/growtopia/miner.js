@@ -12,7 +12,8 @@ export async function onRequestGet({ request }) {
   const errors = [];
   await Promise.all([
     ...Object.entries(SOURCES).map(([name,target]) => fetchSource(name,target,refresh).then(x=>results[name]=x).catch(e=>errors.push({source:name,error:String(e?.message||e)}))),
-    fetchDataset(request, refresh).then(x=>results.dataset=x).catch(e=>errors.push({source:"dataset",error:String(e?.message||e)}))
+    fetchDataset(request, refresh).then(x=>results.dataset=x).catch(e=>errors.push({source:"dataset",error:String(e?.message||e)})),
+    fetchVersions(request, refresh).then(x=>results.versions=x).catch(e=>errors.push({source:"versions",error:String(e?.message||e)}))
   ]);
   const data={success:Object.keys(results).length>0,generated_at:new Date().toISOString(),sources:results,errors};
   return json(data,data.success?200:502);
@@ -25,8 +26,17 @@ async function fetchDataset(request, refresh) {
   if (!response.ok) throw new Error(`DATASET_HTTP_${response.status}`);
   return response.json();
 }
+
+async function fetchVersions(request, refresh) {
+  const target = new URL("/api/growtopia/versions", request.url);
+  if (refresh) target.searchParams.set("refresh","1");
+  const response = await fetch(target, { cf: refresh ? {cacheTtl:0,cacheEverything:false} : {cacheTtl:900,cacheEverything:true} });
+  if (!response.ok) throw new Error(`VERSIONS_HTTP_${response.status}`);
+  return response.json();
+}
+
 async function fetchSource(name,target,refresh){
-  const response=await fetch(target,{headers:{"User-Agent":"BILSX-Growtopia-Miner/2.0 (+https://web-d8a.pages.dev)","Accept":"text/html,application/json;q=0.9,*/*;q=0.8"},cf:refresh?{cacheTtl:0,cacheEverything:false}:{cacheTtl:300,cacheEverything:true}});
+  const response=await fetch(target,{headers:{"User-Agent":"BILSX-Growtopia-Miner/3.0 (+https://web-d8a.pages.dev)","Accept":"text/html,application/json;q=0.9,*/*;q=0.8"},cf:refresh?{cacheTtl:0,cacheEverything:false}:{cacheTtl:300,cacheEverything:true}});
   if(!response.ok)throw new Error(`HTTP_${response.status}`);
   const text=await response.text();
   if(name==='detail')return parseDetail(text); if(name==='website')return parseWebsite(text); if(name==='shop')return parseShop(text); if(name==='forums')return parseForums(text);
