@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BILSX • RTTEX Converter</title>
+<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tools-fixes.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body class="tools-app">
+<header class="tools-topbar"><a class="brand" href="/tools.html#home">BILSX<span>TOOLS</span></a><div class="top-actions"><a href="/tools.html#items">Item Browser</a><a href="/tools.html#miner">Data Miner</a><a class="top-login" href="/login.html">Login</a></div></header>
+<main class="tools-content" style="max-width:1180px;margin:auto;padding:32px 20px">
+<section class="tool-page active" style="display:block">
+<div class="page-heading"><div><div class="eyebrow">ASSET TOOLS</div><h2>RTTEX Converter</h2><p>Decode Growtopia RTTEX textures to PNG, or pack PNG back into the RTTEX container. Files stay in your browser.</p></div><a href="/tools.html#home" class="back">← Tools</a></div>
+<div class="split-panel">
+<div class="tool-panel"><h3>RTTEX → PNG</h3><p class="tool-note">Supports the common RTPACK → RTTXTR RGBA structure used by Growtopia textures.</p><label class="search-large" style="display:block;padding:18px"><input id="rtFile" type="file" accept=".rttex,application/octet-stream"></label><div id="rtMeta" class="tool-note">Choose an RTTEX file.</div><div id="rtPreview" style="min-height:220px;display:flex;align-items:center;justify-content:center;overflow:auto;background:#09070f;border-radius:14px;margin-top:15px"></div><button class="primary full" id="rtDownload" disabled>Download PNG</button></div>
+<div class="tool-panel"><h3>PNG → RTTEX</h3><p class="tool-note">PNG is converted to RGBA pixels and packed into a valid RTPACK/RTTXTR container.</p><label class="search-large" style="display:block;padding:18px"><input id="pngFile" type="file" accept="image/png"></label><div id="pngMeta" class="tool-note">Choose a PNG file.</div><div id="pngPreview" style="min-height:220px;display:flex;align-items:center;justify-content:center;overflow:auto;background:#09070f;border-radius:14px;margin-top:15px"></div><button class="primary full" id="pngDownload" disabled>Download RTTEX</button></div>
+</div>
+<div class="tool-panel"><h3>Item sprite helper</h3><p class="tool-note">For an item from items.dat, use its texture file plus Texture X/Y. The Item Browser now receives these coordinates and can crop a 32×32 sprite directly from the decoded texture.</p><div class="result-grid"><div><small>SOURCE</small><strong>items.dat</strong></div><div><small>TEXTURE</small><strong>decoded PNG</strong></div><div><small>CROP</small><strong>32 × 32</strong></div><div><small>PROCESSING</small><strong>Browser-side</strong></div></div></div>
+</section></main><script src="/rttex.js"></script>
+</body></html>
