@@ -8,7 +8,8 @@
   function addPriceProviderHint(){const box=$('priceResult');if(!box||document.getElementById('gtidHint'))return;if(box.textContent.includes('GTID_PRICE_API_NOT_CONFIGURED')||box.textContent.includes('source is not configured')){const hint=document.createElement('div');hint.id='gtidHint';hint.className='tool-note';hint.innerHTML='Provider: <b>GTID</b> · BILSX will only use a verified machine-readable endpoint and will not invent market values.';box.appendChild(hint);}}
   function addRttxLink(){if(document.getElementById('rttxToolLink'))return;const a=document.createElement('a');a.id='rttxToolLink';a.href='/rttex.html';a.textContent='RTTEX Converter';a.style.cssText='padding:9px 12px;border:1px solid rgba(168,82,255,.45);border-radius:10px;color:inherit;text-decoration:none;display:inline-block;margin:0 0 18px';const page=document.querySelector('[data-page="miner"]');const heading=page?.querySelector('.page-heading');if(heading)heading.appendChild(a);}
   function loadAssetEnhancer(){if(document.querySelector('script[data-bilsx-assets]'))return;const s=document.createElement('script');s.src='/tools-assets.js';s.dataset.bilsxAssets='1';document.body.appendChild(s);}
+  function loadItemFix(){if(document.querySelector('script[data-bilsx-item-fix]'))return;const s=document.createElement('script');s.src='/tools-item-fix.js?v=3';s.dataset.bilsxItemFix='1';document.body.appendChild(s);}
   window.addEventListener('hashchange',()=>{if(location.hash==='#miner')setTimeout(refreshMinerPanel,300);});
-  setTimeout(()=>{addRttxLink();loadAssetEnhancer();if(location.hash==='#miner')refreshMinerPanel();},700);
+  setTimeout(()=>{addRttxLink();loadAssetEnhancer();loadItemFix();if(location.hash==='#miner')refreshMinerPanel();},700);
   const oldFetch=window.fetch;window.fetch=async function(...args){const r=await oldFetch.apply(this,args);if(String(args[0]).includes('/api/growtopia/price'))setTimeout(addPriceProviderHint,100);return r;};
 })();
